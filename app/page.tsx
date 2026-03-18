@@ -1,42 +1,71 @@
 "use client";
 
 import { useState } from "react";
+import { FiSearch, FiTrendingUp } from "react-icons/fi"; // אייקונים נקיים ומודרניים
 
 export default function Home() {
-  // משתנה State שיחזיק את מה שהמשתמש כותב בתיבת החיפוש
   const [ticker, setTicker] = useState("");
 
   const handleSearch = () => {
     if (!ticker) return;
-    // בינתיים רק נדפיס ללוג כדי לראות שזה עובד
-    console.log("Searching for ticker:", ticker);
-    alert("מחפש נתונים עבור: " + ticker);
+    alert(`Searching for ${ticker} in the global markets...`);
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-50 text-black">
-      <div className="max-w-md w-full text-center space-y-8">
-        <h1 className="text-5xl font-extrabold tracking-tight text-blue-600">
-          Stockify
-        </h1>
-        <p className="text-gray-500 text-lg">
-          הזן Ticker של מניה (למשל AAPL או TSLA) כדי לקבל פרטים
-        </p>
+    <main className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
+      
+      {/* --- BACKGROUND EFFECTS --- */}
+      {/* עיגולי אור מטושטשים שנותנים עומק ויוקרה */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none"></div>
 
-        <div className="flex flex-col gap-4">
-          <input
-            type="text"
-            placeholder="Search Ticker..."
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value.toUpperCase())}
-            className="w-full px-5 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all"
-          />
-          <button
-            onClick={handleSearch}
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg"
-          >
-            Search
-          </button>
+      <div className="max-w-2xl w-full z-10">
+        <div className="text-center space-y-4 mb-12">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase">
+            <FiTrendingUp /> Real-time Market Data
+          </div>
+          
+          <h1 className="text-7xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent">
+            STOCKIFY
+          </h1>
+          <p className="text-gray-400 text-lg max-w-md mx-auto">
+            Track your favorite stocks with minimalist, precision-driven data.
+          </p>
+        </div>
+
+        {/* --- SEARCH BAR --- */}
+        <div className="relative group">
+          {/* הילה כחולה שמופיעה כשעוברים עם העכבר על החיפוש */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+          
+          <div className="relative flex items-center bg-[#111] border border-white/10 rounded-2xl p-2 focus-within:border-blue-500/50 transition-all shadow-2xl">
+            <div className="pl-4 text-gray-500">
+              <FiSearch size={24} />
+            </div>
+            
+            <input
+              type="text"
+              placeholder="Search Ticker (e.g. AAPL, TSLA)"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+              className="w-full bg-transparent px-4 py-4 text-xl outline-none placeholder:text-gray-600 font-medium"
+            />
+            
+            <button
+              onClick={handleSearch}
+              className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+            >
+              Analyze
+            </button>
+          </div>
+        </div>
+
+        {/* --- QUICK LINKS --- */}
+        <div className="mt-8 flex justify-center gap-6 text-xs font-medium text-gray-500 uppercase tracking-widest">
+          <span className="hover:text-white cursor-pointer transition-colors">Nasdaq</span>
+          <span className="hover:text-white cursor-pointer transition-colors">S&P 500</span>
+          <span className="hover:text-white cursor-pointer transition-colors">Crypto</span>
         </div>
       </div>
     </main>
