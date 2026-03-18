@@ -15,9 +15,10 @@ export default function Home() {
     <main className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
       
       {/* --- BACKGROUND ANIMATIONS --- */}
-      {/* העיגולים המקוריים שקוראים עכשיו למחלקות מקובץ ה-CSS הגלובלי */}
       <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none animate-blob"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none animate-blob animation-delay-2000"></div>
+      
+      {/* כאן שינינו את הדיליי כדי שיעבוד עם ההגדרות של Tailwind */}
+      <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none animate-blob [animation-delay:2s]"></div>
 
       <div className="max-w-2xl w-full z-10">
         <div className="text-center space-y-4 mb-12">
