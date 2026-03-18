@@ -1,10 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FiSearch, FiTrendingUp } from "react-icons/fi";
 
 export default function Home() {
   const [ticker, setTicker] = useState("");
+  // --- Mouse Tracking Logic ---
+  // useState כדי לשמור את מיקום העכבר
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // useEffect כדי להוסיף מאזין אירועים לתנועת העכבר
+  useEffect(() => {
+    const handleMouseMove = (event) => {
+      setMousePosition({ x: event.clientX, y: event.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+
+    // ניקוי המאזין כשהקומפוננטה נסגרת
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+    };
+  }, []);
+  // -----------------------------
 
   const handleSearch = () => {
     if (!ticker) return;
@@ -13,9 +30,7 @@ export default function Home() {
 
   return (
     <>
-      {/* הזרקת CSS ישירה שעוקפת את כל ההגדרות של Tailwind 
-        בכוונה הגדלתי את התנועה וקיצרתי את הזמן כדי שזה יבלוט!
-      */}
+      {/* הזרקת CSS ישירה לשמירה על האנימציה ברקע */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes superFloat {
           0% { transform: translate(0px, 0px) scale(1); }
@@ -33,12 +48,20 @@ export default function Home() {
 
       <main className="min-h-screen bg-[#050505] text-white flex items-center justify-center p-6 relative overflow-hidden font-sans">
         
+        {/* --- CURSOR FOLLOW EFFECT --- */}
+        {/* עיגול המעקב החדש. שימוש ב-fixed, pointer-events-none ו-backdrop-blur למראה יוקרתי */}
+        <div
+          className="pointer-events-none fixed z-50 h-[300px] w-[300px] rounded-full bg-gradient-to-r from-blue-600/10 to-indigo-600/10 blur-[100px] transition-transform duration-100 ease-out"
+          style={{
+            transform: `translate(${mousePosition.x - 150}px, ${mousePosition.y - 150}px)`,
+          }}
+        ></div>
+
         {/* --- BACKGROUND ANIMATIONS --- */}
-        {/* חיזקתי את הצבע (40%) והקטנתי טשטוש שיהיה ברור */}
         <div className="absolute top-[5%] left-[10%] w-[300px] h-[300px] bg-blue-600/40 rounded-full blur-[80px] pointer-events-none force-animate-blob"></div>
         <div className="absolute bottom-[5%] right-[10%] w-[300px] h-[300px] bg-indigo-600/40 rounded-full blur-[80px] pointer-events-none force-animate-blob force-delay"></div>
 
-        <div className="max-w-2xl w-full z-10">
+        <div className="max-w-2xl w-full z-10 relative">
           <div className="text-center space-y-4 mb-12">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase">
               <FiTrendingUp /> Real-time Market Data
@@ -77,10 +100,29 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-8 flex justify-center gap-6 text-xs font-medium text-gray-500 uppercase tracking-widest">
-            <span className="hover:text-white cursor-pointer transition-colors">Nasdaq</span>
-            <span className="hover:text-white cursor-pointer transition-colors">S&P 500</span>
-            <span className="hover:text-white cursor-pointer transition-colors">Crypto</span>
+          {/* --- FOOTER STATS WITH ANIMATED DOTS --- */}
+          <div className="mt-12 flex justify-center items-center gap-8 text-[10px] font-bold text-gray-600 uppercase tracking-[0.3em]">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              </span>
+              NYSE
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              </span>
+              NASDAQ
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+              </span>
+              CRYPTO
+            </div>
           </div>
         </div>
       </main>
