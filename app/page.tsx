@@ -5,7 +5,6 @@ import { FiSearch, FiTrendingUp, FiArrowUp, FiArrowDown, FiActivity, FiBarChart2
 
 const API_KEY = "d6t63tpr01qoqoisd0p0d6t63tpr01qoqoisd0pg";
 
-// המאגר החכם שלנו - עכשיו כולל גם מט"ח (Forex)
 const MARKET_DB = [
   { symbol: "BINANCE:BTCUSDT", description: "Bitcoin (BTC / USD)" },
   { symbol: "BINANCE:ETHUSDT", description: "Ethereum (ETH / USD)" },
@@ -92,9 +91,7 @@ export default function Home() {
     }
   };
 
-  // --- פונקציות לניתוח חכם (Smart Analysis) ---
-  
-  // חישוב המלצת קנייה/מכירה טכנית (Mock Logic for UI)
+  // חישוב המלצת קנייה/מכירה טכנית 
   const getTechnicalAction = (percentChange: number) => {
     if (percentChange > 2) return { text: "STRONG BUY", color: "text-green-400", bg: "bg-green-500/10", border: "border-green-500/20" };
     if (percentChange > 0.5) return { text: "BUY", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" };
@@ -103,13 +100,11 @@ export default function Home() {
     return { text: "NEUTRAL / HOLD", color: "text-gray-400", bg: "bg-gray-500/10", border: "border-gray-500/20" };
   };
 
-  // חישוב מיקום המחיר בתוך הטווח היומי (באחוזים 0-100) בשביל ה-Progress Bar
   const getDayRangePercent = (current: number, low: number, high: number) => {
-    if (high === low) return 50; // מניעת חלוקה באפס
+    if (high === low) return 50; 
     return Math.max(0, Math.min(100, ((current - low) / (high - low)) * 100));
   };
 
-  // יצירת טקסט סיכום אוטומטי
   const generateSummary = (symbol: string, change: number, percent: number) => {
     const cleanSymbol = symbol.replace("BINANCE:", "").replace("OANDA:", "");
     if (percent > 2) return `${cleanSymbol} is showing strong bullish momentum today, significantly outperforming average daily moves. Breakout potential is high.`;
@@ -139,7 +134,6 @@ export default function Home() {
       <div onMouseMove={handleMouseMove} className="bg-[#050505] text-white font-sans relative">
         
         {/* --- FIXED BACKGROUND & CURSOR --- */}
-        {/* הכל פה הוגדר כ-fixed כדי שיישאר גם כשגוללים למטה! */}
         <div className="fixed inset-0 z-0 pointer-events-none">
           <div ref={glowRef} className="absolute top-0 left-0 h-[300px] w-[300px] rounded-full bg-gradient-to-r from-blue-600/20 to-indigo-600/20 blur-[80px] transition-transform duration-75 ease-out" style={{ transform: 'translate(-500px, -500px)' }}></div>
           <div className="absolute top-[5%] left-[10%] w-[400px] h-[400px] bg-blue-600/30 rounded-full blur-[100px] force-animate-blob"></div>
@@ -154,13 +148,13 @@ export default function Home() {
           <div className="max-w-2xl w-full">
             <div className="text-center space-y-4 mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase backdrop-blur-sm">
-                <FiTrendingUp /> Institutional Grade Terminal
+                <FiTrendingUp /> Real-time Market Data
               </div>
               <h1 className="text-7xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent drop-shadow-2xl">
                 STOCKIFY
               </h1>
               <p className="text-gray-400 text-lg max-w-md mx-auto">
-                Advanced market dynamics and real-time algorithmic analysis.
+                Track your favorite stocks with minimalist, precision-driven data.
               </p>
             </div>
 
@@ -212,6 +206,32 @@ export default function Home() {
                 {error}
               </div>
             )}
+
+            {/* --- FOOTER STATS WITH ANIMATED DOTS (הוחזר למקומו) --- */}
+            <div className="mt-12 flex justify-center items-center gap-8 text-[10px] font-bold text-gray-600 uppercase tracking-[0.3em]">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-orange-500"></span>
+                </span>
+                NYSE
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                NASDAQ
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                </span>
+                CRYPTO
+              </div>
+            </div>
+
           </div>
         </main>
 
@@ -221,12 +241,10 @@ export default function Home() {
         {stockData && (
           <div ref={analysisRef} className="min-h-screen flex flex-col items-center justify-center p-6 relative z-10 pt-20 pb-32">
             
-            {/* קו מפריד יוקרתי */}
             <div className="absolute top-0 w-full max-w-4xl h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
             <div className="max-w-5xl w-full space-y-8">
               
-              {/* כותרת החברה ותגית המלצה */}
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 bg-black/40 p-8 rounded-3xl border border-white/5 backdrop-blur-xl">
                 <div className="flex items-center gap-6">
                   {companyData?.logo ? (
@@ -249,7 +267,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* תגית המלצה טכנית דינמית */}
                 <div className={`px-6 py-3 rounded-2xl border backdrop-blur-md flex flex-col items-center justify-center ${getTechnicalAction(stockData.dp).bg} ${getTechnicalAction(stockData.dp).border}`}>
                   <span className="text-[10px] uppercase tracking-widest text-gray-400 font-bold mb-1">AI Action Signal</span>
                   <span className={`text-xl font-black tracking-wider ${getTechnicalAction(stockData.dp).color}`}>
@@ -260,7 +277,6 @@ export default function Home() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* כרטיסיית מחיר ראשית */}
                 <div className="lg:col-span-2 bg-gradient-to-br from-black/80 to-[#0a0a0a] backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-[80px] pointer-events-none"></div>
                   
@@ -285,7 +301,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* מדד טווח יומי (Day Range) מטורף */}
                   <div className="space-y-3">
                     <div className="flex justify-between text-xs font-bold text-gray-500 uppercase tracking-widest">
                       <span>Day Low: ${stockData.l.toFixed(2)}</span>
@@ -300,9 +315,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* עמודת סטטיסטיקות שוק */}
                 <div className="space-y-6">
-                  {/* סיכום שוק חכם */}
                   <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl">
                     <p className="flex items-center gap-2 text-gray-500 font-bold tracking-widest text-xs uppercase mb-4">
                       <FiCpu className="text-purple-500" /> Market Summary
@@ -312,7 +325,6 @@ export default function Home() {
                     </p>
                   </div>
 
-                  {/* נתוני מסחר בסיסיים */}
                   <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-2xl grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-600 font-bold tracking-widest text-[10px] uppercase mb-1">Open</p>
