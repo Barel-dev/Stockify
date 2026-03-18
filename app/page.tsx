@@ -1,56 +1,44 @@
-import Header from "components/Header";
-import Hero from "components/Hero";
-import Features from "components/Features";
-import Section from "components/Section";
-import Footer from "components/Footer";
-import Customers from "components/Customers";
-import Image from "next/image";
-import Accordion from "components/Accordion";
-import Reviews from "components/Reviews";
-import Download from "components/Download";
+"use client";
 
-export default function Page() {
+import { useState } from "react";
+
+export default function Home() {
+  // משתנה State שיחזיק את מה שהמשתמש כותב בתיבת החיפוש
+  const [ticker, setTicker] = useState("");
+
+  const handleSearch = () => {
+    if (!ticker) return;
+    // בינתיים רק נדפיס ללוג כדי לראות שזה עובד
+    console.log("Searching for ticker:", ticker);
+    alert("מחפש נתונים עבור: " + ticker);
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-white dark:bg-black">
-      <Header />
-      <main>
-        <Hero />
-        <Features />
-        <Section
-          leftHalf={
-            <>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-gray-900 dark:text-white mb-4">
-                Effortlessly highlight the key features of your app
-              </h2>
-              <p className="text-xl font-light">
-                Our app makes it easy to showcase your key features. With customizable sections, you can highlight the
-                most important aspects of your product. More to come.
-              </p>
-            </>
-          }
-          rightHalf={
-            <Image src={"/products/phone.png"} alt="section-image" width={500} height={100} className="w-1/2 h-auto" />
-          }
-        />
-        <Customers />
-        <Section
-          leftHalf={<Accordion />}
-          rightHalf={
-            <div className="flex flex-col justify-end">
-              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-gray-900 dark:text-white mb-4">
-                Highlight the key features
-              </h2>
-              <p className="text-xl font-light">
-                Talk about some of the key features of your app that you want to highlight. Use the beautiful accordion
-                to highlight the key features of your app.
-              </p>
-            </div>
-          }
-        />
-        <Reviews />
-        <Download />
-      </main>
-      <Footer />
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-50 text-black">
+      <div className="max-w-md w-full text-center space-y-8">
+        <h1 className="text-5xl font-extrabold tracking-tight text-blue-600">
+          Stockify
+        </h1>
+        <p className="text-gray-500 text-lg">
+          הזן Ticker של מניה (למשל AAPL או TSLA) כדי לקבל פרטים
+        </p>
+
+        <div className="flex flex-col gap-4">
+          <input
+            type="text"
+            placeholder="Search Ticker..."
+            value={ticker}
+            onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            className="w-full px-5 py-3 text-lg border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none transition-all"
+          />
+          <button
+            onClick={handleSearch}
+            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg"
+          >
+            Search
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
