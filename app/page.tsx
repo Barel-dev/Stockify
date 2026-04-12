@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -10,6 +11,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FiSearch,
   FiTrendingUp,
@@ -27,10 +29,12 @@ import {
   FiCalendar,
   FiExternalLink,
   FiChevronUp,
+  FiStar,
 } from "react-icons/fi";
 import Image from "next/image";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 
-const API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? "";
+// API calls go through server-side routes in /api/*
 
 type AssetType = "stock" | "crypto" | "forex";
 type TabKey = "overview" | "technical" | "fundamentals" | "news";
@@ -846,6 +850,16 @@ function NewsCard({ item }: { item: NewsItem }) {
 }
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
+  const { isSignedIn } = useUser();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
   const [ticker, setTicker] = useState("");
@@ -863,6 +877,7 @@ export default function Home() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [watchlist, setWatchlist] = useState<string[]>([]);
 
   const glowRef = useRef<HTMLDivElement>(null);
   const analysisRef = useRef<HTMLDivElement>(null);
@@ -887,6 +902,53 @@ export default function Home() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  useEffect(() => {
+    const urlTicker = searchParams.get("ticker");
+    if (urlTicker && !stockData) {
+      setTicker(urlTicker.toUpperCase());
+      handleSearch(urlTicker.toUpperCase());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!isSignedIn) return;
+    fetch("/api/watchlist")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setWatchlist(data.map((item: { symbol: string }) => item.symbol));
+      })
+      .catch(() => {});
+  }, [isSignedIn]);
+
+  const isInWatchlist = ticker ? watchlist.includes(ticker) : false;
+
+  const toggleWatchlist = async () => {
+    if (!isSignedIn || !ticker) return;
+    const wasInWatchlist = isInWatchlist;
+
+    if (wasInWatchlist) {
+      setWatchlist((prev) => prev.filter((s) => s !== ticker));
+    } else {
+      setWatchlist((prev) => [...prev, ticker]);
+    }
+
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: wasInWatchlist ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol: ticker, companyName: companyData?.name || "" }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      if (wasInWatchlist) {
+        setWatchlist((prev) => [...prev, ticker]);
+      } else {
+        setWatchlist((prev) => prev.filter((s) => s !== ticker));
+      }
+    }
+  };
+
   const handleMouseMove = (e: MouseEvent<HTMLElement>) => {
     if (glowRef.current) {
       glowRef.current.style.transform = `translate(${e.clientX - 150}px, ${e.clientY - 150}px)`;
@@ -905,7 +967,7 @@ export default function Home() {
       );
 
       const searchResults = await safeFetchJson<{ result?: FinnhubSearchResult[] }>(
-        `https://finnhub.io/api/v1/search?q=${encodeURIComponent(value)}&token=${API_KEY}`
+        `/api/search?q=${encodeURIComponent(value)}`
       );
 
       if (requestId !== searchCounterRef.current) return;
@@ -971,8 +1033,6 @@ export default function Home() {
       const newsToDate = new Date();
       const newsTo = Number.isNaN(newsToDate.getTime()) ? "" : newsToDate.toISOString().slice(0, 10);
       
-      const candleEndpoint = getCandleEndpoint(resolvedSymbol);
-
       const [
         quoteRes,
         profileRes,
@@ -984,51 +1044,37 @@ export default function Home() {
         priceTargetRes,
       ] = await Promise.all([
         safeFetchJson<QuoteData>(
-          `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(resolvedSymbol)}&token=${API_KEY}`
+          `/api/quote?symbol=${encodeURIComponent(resolvedSymbol)}`
         ),
         safeFetchJson<ProfileData>(
-          `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(
-            resolvedSymbol
-          )}&token=${API_KEY}`
+          `/api/company?symbol=${encodeURIComponent(resolvedSymbol)}`
         ),
         safeFetchJson<CandleData>(
-          `https://finnhub.io/api/v1/${candleEndpoint}?symbol=${encodeURIComponent(
-            resolvedSymbol
-          )}&resolution=D&from=${from}&to=${now}&token=${API_KEY}`
+          `/api/candles?symbol=${encodeURIComponent(resolvedSymbol)}&resolution=D&from=${from}&to=${now}&type=${assetType === "forex" ? "forex" : "stock"}`
         ),
         assetType === "stock"
           ? safeFetchJson<RecommendationTrend[]>(
-              `https://finnhub.io/api/v1/stock/recommendation?symbol=${encodeURIComponent(
-                resolvedSymbol
-              )}&token=${API_KEY}`
+              `/api/recommendations?symbol=${encodeURIComponent(resolvedSymbol)}`
             )
           : Promise.resolve(null),
         assetType === "stock"
           ? safeFetchJson<BasicFinancialsData>(
-              `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(
-                resolvedSymbol
-              )}&metric=all&token=${API_KEY}`
+              `/api/metrics?symbol=${encodeURIComponent(resolvedSymbol)}`
             )
           : Promise.resolve(null),
         assetType === "stock"
           ? safeFetchJson<NewsItem[]>(
-              `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(
-                resolvedSymbol
-              )}&from=${newsFrom}&to=${newsTo}&token=${API_KEY}`
+              `/api/news?symbol=${encodeURIComponent(resolvedSymbol)}&from=${newsFrom}&to=${newsTo}`
             )
           : Promise.resolve(null),
         assetType === "stock"
           ? safeFetchJson<EarningsItem[]>(
-              `https://finnhub.io/api/v1/stock/earnings?symbol=${encodeURIComponent(
-                resolvedSymbol
-              )}&token=${API_KEY}`
+              `/api/earnings?symbol=${encodeURIComponent(resolvedSymbol)}`
             )
           : Promise.resolve(null),
         assetType === "stock"
           ? safeFetchJson<PriceTargetData>(
-              `https://finnhub.io/api/v1/stock/price-target?symbol=${encodeURIComponent(
-                resolvedSymbol
-              )}&token=${API_KEY}`
+              `/api/price-target?symbol=${encodeURIComponent(resolvedSymbol)}`
             )
           : Promise.resolve(null),
       ]);
@@ -1338,22 +1384,43 @@ export default function Home() {
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
         </div>
 
-        <div className="fixed top-5 left-6 z-50 flex items-center gap-2.5">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-8 w-8">
-            <defs>
-              <linearGradient id="logo-g" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#3b82f6"/>
-                <stop offset="100%" stopColor="#8b5cf6"/>
-              </linearGradient>
-            </defs>
-            <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-            <rect x="96" y="280" width="56" height="140" rx="8" fill="url(#logo-g)" opacity="0.5"/>
-            <rect x="192" y="200" width="56" height="220" rx="8" fill="url(#logo-g)" opacity="0.65"/>
-            <rect x="288" y="140" width="56" height="280" rx="8" fill="url(#logo-g)" opacity="0.8"/>
-            <rect x="384" y="80" width="56" height="340" rx="8" fill="url(#logo-g)"/>
-            <line x1="124" y1="270" x2="412" y2="70" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" opacity="0.9"/>
-          </svg>
-          <span className="text-lg font-bold tracking-tight text-white">Stockify</span>
+        <div className="fixed top-5 left-6 right-6 z-50 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-8 w-8">
+              <defs>
+                <linearGradient id="logo-g" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3b82f6"/>
+                  <stop offset="100%" stopColor="#8b5cf6"/>
+                </linearGradient>
+              </defs>
+              <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+              <rect x="96" y="280" width="56" height="140" rx="8" fill="url(#logo-g)" opacity="0.5"/>
+              <rect x="192" y="200" width="56" height="220" rx="8" fill="url(#logo-g)" opacity="0.65"/>
+              <rect x="288" y="140" width="56" height="280" rx="8" fill="url(#logo-g)" opacity="0.8"/>
+              <rect x="384" y="80" width="56" height="340" rx="8" fill="url(#logo-g)"/>
+              <line x1="124" y1="270" x2="412" y2="70" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" opacity="0.9"/>
+            </svg>
+            <span className="text-lg font-bold tracking-tight text-white">Stockify</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {isSignedIn ? (
+              <>
+                <a
+                  href="/watchlist"
+                  className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-gray-300 hover:border-blue-500/30 hover:text-white transition-all"
+                >
+                  Watchlist
+                </a>
+                <UserButton />
+              </>
+            ) : (
+              <SignInButton mode="modal">
+                <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
+                  Sign In
+                </button>
+              </SignInButton>
+            )}
+          </div>
         </div>
 
         {loading && stockData && (
@@ -1506,6 +1573,20 @@ export default function Home() {
                       <h2 className="mt-4 text-4xl md:text-5xl font-black tracking-tight text-white break-words leading-tight">
                         {companyData?.name || cleanSymbol(ticker)}
                       </h2>
+
+                      {isSignedIn && (
+                        <button
+                          onClick={toggleWatchlist}
+                          className={`mt-3 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all ${
+                            isInWatchlist
+                              ? "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+                              : "border-white/10 bg-white/[0.05] text-gray-400 hover:border-blue-500/30 hover:text-white"
+                          }`}
+                        >
+                          <FiStar className={isInWatchlist ? "fill-amber-400" : ""} />
+                          {isInWatchlist ? "In Watchlist" : "Add to Watchlist"}
+                        </button>
+                      )}
 
                       <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400 min-w-0">
                         <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 font-bold tracking-[0.22em] text-blue-300 uppercase break-all">
