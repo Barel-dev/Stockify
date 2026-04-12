@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -24,9 +26,11 @@ import {
   FiBriefcase,
   FiCalendar,
   FiExternalLink,
+  FiChevronUp,
 } from "react-icons/fi";
+import Image from "next/image";
 
-const API_KEY = "d6t63tpr01qoqoisd0p0d6t63tpr01qoqoisd0pg";
+const API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY ?? "";
 
 type AssetType = "stock" | "crypto" | "forex";
 type TabKey = "overview" | "technical" | "fundamentals" | "news";
@@ -163,11 +167,6 @@ type EmptyStateProps = {
   description: string;
 };
 
-type CandlestickChartProps = {
-  candles: CandleData | null;
-  assetType: AssetType;
-  currentPrice?: number | null;
-};
 
 const MARKET_DB: SuggestionItem[] = [
   { symbol: "BINANCE:BTCUSDT", description: "Bitcoin (BTC / USD)" },
@@ -204,7 +203,6 @@ const isNumber = (value: unknown): value is number =>
 const average = (values: number[]) =>
   values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
-// תוקן באג פוטנציאלי לטיפול ב-NaN בערכים ריקים
 const clamp = (value: number, min = 0, max = 100) =>
   Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
 
@@ -315,10 +313,6 @@ const calculateSMA = (values: number[], period: number) => {
   return average(values.slice(-period));
 };
 
-const calculateSMAArray = (values: number[], period: number) =>
-  values.map((_, index) =>
-    index + 1 < period ? null : average(values.slice(index + 1 - period, index + 1))
-  );
 
 const calculateEMAArray = (values: number[], period: number) => {
   const result: Array<number | null> = Array(values.length).fill(null);
@@ -461,34 +455,6 @@ const getRangePercent = (
   return clamp(((current - low) / (high - low)) * 100);
 };
 
-const getPolylinePoints = (
-  values: Array<number | null>,
-  minValue: number,
-  maxValue: number,
-  width: number,
-  height: number,
-  paddingTop = 20,
-  paddingBottom = 20
-) => {
-  const drawableHeight = height - paddingTop - paddingBottom;
-  const lastIndex = Math.max(values.length - 1, 1);
-
-  return values
-    .map((value, index) => {
-      if (!isNumber(value)) return null;
-
-      const x = (index / lastIndex) * width;
-      const y =
-        paddingTop +
-        (maxValue === minValue
-          ? drawableHeight / 2
-          : ((maxValue - value) / (maxValue - minValue)) * drawableHeight);
-
-      return `${x},${y}`;
-    })
-    .filter((point): point is string => Boolean(point))
-    .join(" ");
-};
 
 const getSignalFromScore = (score: number) => {
   if (score >= 78) {
@@ -611,7 +577,7 @@ function SectionCard({
 }: SectionCardProps) {
   return (
     <div
-      className={`min-w-0 rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl ${className}`}
+      className={`min-w-0 rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl transition-all duration-300 hover:border-white/20 hover:shadow-[0_0_40px_rgba(59,130,246,0.06)] ${className}`}
     >
       <div className="flex items-start justify-between gap-4 mb-5 min-w-0">
         <div className="min-w-0">
@@ -644,7 +610,7 @@ function MetricCard({
   };
 
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.06] hover:scale-[1.02]">
       <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">{label}</p>
       <p className={`mt-2 text-xl md:text-2xl font-black break-words leading-tight ${accentMap[accent]}`}>
         {value}
@@ -674,7 +640,7 @@ function ProgressBar({ label, value, tone = "blue" }: ProgressBarProps) {
       </div>
       <div className="h-2.5 rounded-full bg-white/5 border border-white/10 overflow-hidden">
         <div
-          className={`h-full rounded-full ${toneMap[tone]}`}
+          className={`h-full rounded-full transition-all duration-700 ease-out ${toneMap[tone]}`}
           style={{ width: `${clamp(safeValue)}%` }}
         />
       </div>
@@ -688,6 +654,68 @@ function EmptyState({ title, description }: EmptyStateProps) {
       <p className="text-sm font-bold text-white">{title}</p>
       <p className="mt-2 text-sm text-gray-400 leading-6">{description}</p>
     </div>
+  );
+}
+
+function RangeBar({
+  low,
+  high,
+  current,
+  lowLabel = "Low",
+  highLabel = "High",
+  formatFn,
+}: {
+  low: number;
+  high: number;
+  current: number;
+  lowLabel?: string;
+  highLabel?: string;
+  formatFn: (v: number) => string;
+}) {
+  const pct = high === low ? 50 : clamp(((current - low) / (high - low)) * 100);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between text-xs text-gray-500 font-bold uppercase tracking-[0.2em]">
+        <span>{lowLabel}</span>
+        <span>{highLabel}</span>
+      </div>
+      <div className="relative h-3 rounded-full bg-gradient-to-r from-rose-500/30 via-gray-500/20 to-emerald-500/30 border border-white/10 overflow-hidden">
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)] border-2 border-blue-400 transition-all duration-700"
+          style={{ left: `calc(${pct}% - 8px)` }}
+        />
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-bold text-rose-400">{formatFn(low)}</span>
+        <span className="text-xs text-gray-400">
+          Current: <span className="font-bold text-white">{formatFn(current)}</span>
+        </span>
+        <span className="font-bold text-emerald-400">{formatFn(high)}</span>
+      </div>
+    </div>
+  );
+}
+
+function ScrollToTopButton() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 600);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-8 right-8 z-50 p-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-2xl shadow-blue-600/30 transition-all hover:scale-110 active:scale-95 animate-fade-in-up"
+      aria-label="Scroll to top"
+    >
+      <FiChevronUp size={22} />
+    </button>
   );
 }
 
@@ -723,221 +751,65 @@ function LoadingDashboardSkeleton() {
   );
 }
 
-function CandlestickChart({ candles, assetType, currentPrice }: CandlestickChartProps) {
-  const chart = useMemo(() => {
-    if (!candles?.c?.length || !candles?.o?.length || !candles?.h?.length || !candles?.l?.length) {
-      return null;
-    }
+const getTradingViewSymbol = (symbol: string): string => {
+  if (symbol.startsWith("OANDA:")) return symbol.replace(/_/g, "");
+  return symbol;
+};
 
-    const total = Math.min(
-      candles.c.length,
-      candles.o.length,
-      candles.h.length,
-      candles.l.length,
-      candles.t.length
-    );
+function TradingViewChart({ symbol }: { symbol: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
-    if (!total) return null;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    const visibleCount = Math.min(42, total);
-    const start = total - visibleCount;
+    const tvSymbol = getTradingViewSymbol(symbol);
 
-    const visible = Array.from({ length: visibleCount }, (_, index) => ({
-      open: candles.o[start + index],
-      high: candles.h[start + index],
-      low: candles.l[start + index],
-      close: candles.c[start + index],
-      time: candles.t[start + index],
-      volume: candles.v[start + index] ?? 0,
-    })).filter(
-      (item) =>
-        isNumber(item.open) &&
-        isNumber(item.high) &&
-        isNumber(item.low) &&
-        isNumber(item.close) &&
-        isNumber(item.time)
-    );
+    container.innerHTML = "";
 
-    if (!visible.length) return null;
+    const widgetDiv = document.createElement("div");
+    widgetDiv.className = "tradingview-widget-container__widget";
+    widgetDiv.style.height = "100%";
+    widgetDiv.style.width = "100%";
 
-    const fullSma20 = calculateSMAArray(candles.c.slice(0, total), 20).slice(-visible.length);
-    const fullSma50 = calculateSMAArray(candles.c.slice(0, total), 50).slice(-visible.length);
+    const script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.async = true;
+    script.textContent = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval: "D",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      backgroundColor: "rgba(0, 0, 0, 1)",
+      gridColor: "rgba(255, 255, 255, 0.06)",
+      allow_symbol_change: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      calendar: false,
+      hide_volume: false,
+      studies: ["STD;SMA"],
+      support_host: "https://www.tradingview.com",
+    });
 
-    return {
-      visible,
-      sma20: fullSma20,
-      sma50: fullSma50,
+    container.appendChild(widgetDiv);
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = "";
     };
-  }, [candles]);
-
-  if (!chart) {
-    return (
-      <EmptyState
-        title="Chart data is not available yet"
-        description="I could not build the candlestick view for this symbol. Try another ticker or wait for candles to load."
-      />
-    );
-  }
-
-  const width = 920;
-  const height = 330;
-  const paddingTop = 18;
-  const paddingBottom = 28;
-  const drawableHeight = height - paddingTop - paddingBottom;
-
-  const highestPrice = Math.max(...chart.visible.map((candle) => candle.high));
-  const lowestPrice = Math.min(...chart.visible.map((candle) => candle.low));
-  const candleSlot = width / chart.visible.length;
-  const bodyWidth = Math.max(4, candleSlot * 0.56);
-
-  const priceToY = (price: number) =>
-    paddingTop +
-    (highestPrice === lowestPrice
-      ? drawableHeight / 2
-      : ((highestPrice - price) / (highestPrice - lowestPrice)) * drawableHeight);
-
-  const sma20Points = getPolylinePoints(
-    chart.sma20,
-    lowestPrice,
-    highestPrice,
-    width,
-    height,
-    paddingTop,
-    paddingBottom
-  );
-
-  const sma50Points = getPolylinePoints(
-    chart.sma50,
-    lowestPrice,
-    highestPrice,
-    width,
-    height,
-    paddingTop,
-    paddingBottom
-  );
-
-  const firstVisible = chart.visible[0];
-  const lastVisible = chart.visible[chart.visible.length - 1];
+  }, [symbol]);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/40">
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[720px] h-[320px]">
-          {Array.from({ length: 5 }).map((_, index) => {
-            const y = paddingTop + (drawableHeight / 4) * index;
-            return (
-              <line
-                key={`grid-${index}`}
-                x1={0}
-                x2={width}
-                y1={y}
-                y2={y}
-                stroke="rgba(255,255,255,0.06)"
-                strokeWidth="1"
-              />
-            );
-          })}
-
-          {sma20Points && (
-            <polyline
-              fill="none"
-              stroke="#f59e0b"
-              strokeWidth="2.4"
-              points={sma20Points}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.95"
-            />
-          )}
-
-          {sma50Points && (
-            <polyline
-              fill="none"
-              stroke="#8b5cf6"
-              strokeWidth="2.4"
-              points={sma50Points}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.95"
-            />
-          )}
-
-          {chart.visible.map((candle, index) => {
-            const x = index * candleSlot + candleSlot / 2;
-            const openY = priceToY(candle.open);
-            const closeY = priceToY(candle.close);
-            const highY = priceToY(candle.high);
-            const lowY = priceToY(candle.low);
-
-            const bodyTop = Math.min(openY, closeY);
-            const bodyHeight = Math.max(Math.abs(closeY - openY), 1.8);
-            const bullish = candle.close >= candle.open;
-            const bodyFill = bullish ? "rgba(34,197,94,0.95)" : "rgba(244,63,94,0.95)";
-            const wickStroke = bullish ? "rgba(74,222,128,0.95)" : "rgba(251,113,133,0.95)";
-
-            return (
-              <g key={`${candle.time}-${index}`}>
-                <line
-                  x1={x}
-                  x2={x}
-                  y1={highY}
-                  y2={lowY}
-                  stroke={wickStroke}
-                  strokeWidth="1.6"
-                  opacity="0.95"
-                />
-                <rect
-                  x={x - bodyWidth / 2}
-                  y={bodyTop}
-                  width={bodyWidth}
-                  height={bodyHeight}
-                  rx="2"
-                  fill={bodyFill}
-                />
-              </g>
-            );
-          })}
-
-          {isNumber(currentPrice) && (
-            <line
-              x1={0}
-              x2={width}
-              y1={priceToY(currentPrice)}
-              y2={priceToY(currentPrice)}
-              stroke="rgba(59,130,246,0.65)"
-              strokeDasharray="7 6"
-              strokeWidth="1.3"
-            />
-          )}
-        </svg>
-      </div>
-
-      <div className="border-t border-white/10 px-4 py-3 flex flex-wrap items-center justify-between gap-4 text-xs text-gray-500">
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-[2px] w-5 bg-amber-400 rounded-full" />
-            SMA 20
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-[2px] w-5 bg-violet-500 rounded-full" />
-            SMA 50
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-3 w-3 rounded-sm bg-green-500" />
-            Bullish candle
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="inline-block h-3 w-3 rounded-sm bg-rose-500" />
-            Bearish candle
-          </span>
-        </div>
-
-        <div className="text-right">
-          {formatDate(firstVisible.time)} — {formatDate(lastVisible.time)} · Daily candles ·{" "}
-          {formatPrice(lowestPrice, assetType)} / {formatPrice(highestPrice, assetType)}
-        </div>
-      </div>
-    </div>
+    <div
+      className="tradingview-widget-container tv-chart-wrapper overflow-hidden rounded-3xl border border-white/10"
+      ref={containerRef}
+    />
   );
 }
 
@@ -994,6 +866,26 @@ export default function Home() {
 
   const glowRef = useRef<HTMLDivElement>(null);
   const analysisRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchCounterRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const handleMouseMove = (e: MouseEvent<HTMLElement>) => {
     if (glowRef.current) {
@@ -1001,15 +893,8 @@ export default function Home() {
     }
   };
 
-  const handleInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase();
-    setTicker(value);
-
-    if (value.length < 1) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
+  const fetchSuggestions = useCallback(async (value: string) => {
+    const requestId = ++searchCounterRef.current;
 
     try {
       const localMatches = MARKET_DB.filter(
@@ -1022,6 +907,8 @@ export default function Home() {
       const searchResults = await safeFetchJson<{ result?: FinnhubSearchResult[] }>(
         `https://finnhub.io/api/v1/search?q=${encodeURIComponent(value)}&token=${API_KEY}`
       );
+
+      if (requestId !== searchCounterRef.current) return;
 
       const apiMatches: SuggestionItem[] = (searchResults?.result ?? []).slice(0, 5).map((item) => ({
         symbol: item.symbol,
@@ -1040,8 +927,23 @@ export default function Home() {
       setShowSuggestions(true);
     } catch (searchError) {
       console.error(searchError);
-      setShowSuggestions(false);
+      if (requestId === searchCounterRef.current) setShowSuggestions(false);
     }
+  }, []);
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    setTicker(value);
+
+    if (value.length < 1) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
   };
 
   const handleSelectSuggestion = (selectedSymbol: string) => {
@@ -1314,23 +1216,22 @@ export default function Home() {
       trendMeter * 0.35 + momentumMeter * 0.3 + sentimentMeter * 0.2 + stabilityMeter * 0.15
     );
     
-    // הגנה אחרונה לחישוב הקומפוזיט
     if (!Number.isFinite(compositeScore)) compositeScore = 50;
 
     const signal = getSignalFromScore(compositeScore);
 
     const trendBias =
       trendMeter >= 65
-        ? "Bullish continuation bias"
+        ? "Trending Up"
         : trendMeter <= 35
-        ? "Bearish pressure bias"
-        : "Balanced / range bias";
+        ? "Trending Down"
+        : "Sideways";
 
     const riskLevel =
       stabilityMeter >= 68 ? "Controlled" : stabilityMeter >= 48 ? "Balanced" : "Aggressive";
 
     const summaryParts: string[] = [
-      `${cleanSymbol(ticker)} is currently rated ${signal.text.toLowerCase()} with a composite score of ${Math.round(
+      `${cleanSymbol(ticker)} is rated ${signal.text.toLowerCase()} with a score of ${Math.round(
         compositeScore
       )}/100.`,
     ];
@@ -1338,29 +1239,32 @@ export default function Home() {
     if (isNumber(rsi14)) {
       summaryParts.push(
         rsi14 > 70
-          ? `RSI is ${rsi14.toFixed(1)}, so momentum is extended and hot.`
+          ? `Momentum looks overbought (RSI ${rsi14.toFixed(0)}) — the price may pull back.`
           : rsi14 < 35
-          ? `RSI is ${rsi14.toFixed(1)}, which points to weak or oversold momentum.`
-          : `RSI is ${rsi14.toFixed(1)}, which keeps momentum in a healthier zone.`
+          ? `Momentum looks oversold (RSI ${rsi14.toFixed(0)}) — the price could bounce.`
+          : `Momentum is healthy (RSI ${rsi14.toFixed(0)}).`
       );
     }
 
     if (isNumber(ema20) && isNumber(ema50)) {
       summaryParts.push(
-        `Spot is ${stockData.c > ema20 ? "above" : "below"} EMA 20, and the short trend is ${
-          ema20 > ema50 ? "still above" : "still below"
-        } EMA 50.`
+        stockData.c > ema20
+          ? "Price is trending above its short-term average."
+          : "Price is trading below its short-term average."
       );
     }
 
     if (assetType === "stock" && isNumber(priceTargetUpside)) {
       summaryParts.push(
-        `Street mean target implies ${formatSignedPercent(priceTargetUpside)} from the current price.`
+        `Analysts expect ${formatSignedPercent(priceTargetUpside)} from here on average.`
       );
     }
 
+    const hasCandles = Boolean(candlesData?.c?.length && candlesData.c.length > 0);
+
     return {
       assetType,
+      hasCandles,
       score: compositeScore,
       signal,
       trendBias,
@@ -1421,28 +1325,7 @@ export default function Home() {
 
   return (
     <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            @keyframes superFloat {
-              0% { transform: translate(0px, 0px) scale(1); }
-              33% { transform: translate(100px, -100px) scale(1.3); }
-              66% { transform: translate(-100px, 100px) scale(0.7); }
-              100% { transform: translate(0px, 0px) scale(1); }
-            }
-            .force-animate-blob {
-              animation: superFloat 4.5s infinite alternate ease-in-out;
-            }
-            .force-delay {
-              animation-delay: 2s;
-            }
-            ::-webkit-scrollbar {
-              display: none;
-            }
-          `,
-        }}
-      />
-
+      <ScrollToTopButton />
       <div onMouseMove={handleMouseMove} className="bg-[#050505] text-white font-sans relative min-h-screen">
         <div className="fixed inset-0 z-0 pointer-events-none">
           <div
@@ -1487,8 +1370,9 @@ export default function Home() {
                 </div>
 
                 <input
+                  ref={searchInputRef}
                   type="text"
-                  placeholder="Search ticker (e.g. AAPL, BTC, ETH, EUR_USD)"
+                  placeholder="Search ticker (e.g. AAPL, BTC, ETH, EUR_USD)  —  Press / to focus"
                   value={ticker}
                   onChange={handleInputChange}
                   onFocus={() => ticker.length >= 1 && suggestions.length > 0 && setShowSuggestions(true)}
@@ -1581,10 +1465,13 @@ export default function Home() {
                 <div className="flex flex-col gap-8 2xl:flex-row 2xl:items-end 2xl:justify-between">
                   <div className="flex items-start gap-5 min-w-0">
                     {companyData?.logo ? (
-                      <img
+                      <Image
                         src={companyData.logo}
-                        alt="logo"
-                        className="w-20 h-20 rounded-2xl shadow-xl bg-white p-1 shrink-0"
+                        alt={`${companyData.name || "Company"} logo`}
+                        width={80}
+                        height={80}
+                        className="rounded-2xl shadow-xl bg-white p-1 shrink-0"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-gray-800 to-black border border-white/10 flex items-center justify-center text-3xl font-bold shadow-xl shrink-0">
@@ -1630,6 +1517,11 @@ export default function Home() {
                             {companyData.finnhubIndustry}
                           </span>
                         )}
+                        {isNumber(companyData?.marketCapitalization) && companyData!.marketCapitalization! > 0 && (
+                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300 font-bold">
+                            Mkt Cap {formatCompactNumber(companyData!.marketCapitalization! * 1e6, "$")}
+                          </span>
+                        )}
                       </div>
 
                       <p className="mt-5 max-w-3xl text-sm md:text-[15px] text-gray-400 leading-8">
@@ -1639,11 +1531,11 @@ export default function Home() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full 2xl:w-auto 2xl:min-w-[620px]">
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 min-w-0">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 min-w-0 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.06]">
                       <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                        Spot Price
+                        Price
                       </p>
-                      <p className="mt-3 text-4xl md:text-5xl font-black tracking-tight break-all leading-tight">
+                      <p className="mt-3 text-4xl md:text-5xl font-black tracking-tight break-all leading-tight animate-price-in">
                         {formatPrice(stockData.c, analysis.assetType)}
                       </p>
                       <div
@@ -1660,10 +1552,10 @@ export default function Home() {
                     </div>
 
                     <div
-                      className={`rounded-3xl border p-5 min-w-0 ${analysis.signal.bg} ${analysis.signal.border}`}
+                      className={`rounded-3xl border p-5 min-w-0 transition-all duration-200 hover:scale-[1.02] ${analysis.signal.bg} ${analysis.signal.border}`}
                     >
                       <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                        Composite Signal
+                        Signal
                       </p>
                       <p className={`mt-3 text-2xl md:text-3xl font-black break-words ${analysis.signal.color}`}>
                         {analysis.signal.text}
@@ -1674,16 +1566,16 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 min-w-0">
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 min-w-0 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.06]">
                       <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                        Live Read
+                        Trend
                       </p>
                       <p className="mt-3 text-xl md:text-2xl font-black text-white break-words">
                         {analysis.trendBias}
                       </p>
                       <div className="mt-4 space-y-2 text-xs text-gray-400">
                         <div className="flex items-center justify-between gap-4">
-                          <span>Day placement</span>
+                          <span>Day range</span>
                           <span>
                             {analysis.dayRangePos !== null
                               ? `${analysis.dayRangePos.toFixed(0)}%`
@@ -1723,381 +1615,164 @@ export default function Home() {
 
               {activeTab === "overview" && (
                 <>
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    <div className="xl:col-span-2 space-y-6">
-                      <SectionCard
-                        title="Price Action & Structure"
-                        subtitle="Daily candlestick view with moving average overlays and cleaner price formatting."
-                        icon={<FiActivity className="text-blue-500" />}
-                        headerRight={
-                          <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-gray-400 font-bold">
-                            {analysis.assetType}
-                          </span>
-                        }
-                      >
-                        <CandlestickChart
-                          candles={candlesData}
-                          assetType={analysis.assetType}
-                          currentPrice={stockData.c}
-                        />
+                  <SectionCard
+                    title="Chart"
+                    subtitle="Interactive chart powered by TradingView. Use the toolbar to add indicators like RSI, MACD, and moving averages."
+                    icon={<FiActivity className="text-blue-500" />}
+                    headerRight={
+                      <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-gray-400 font-bold">
+                        {analysis.assetType}
+                      </span>
+                    }
+                  >
+                    <TradingViewChart symbol={ticker} />
+                  </SectionCard>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mt-6">
-                          <MetricCard
-                            label="Open"
-                            value={formatPrice(stockData.o, analysis.assetType)}
-                            hint="Current session open"
-                            accent="blue"
-                          />
-                          <MetricCard
-                            label="Prev Close"
-                            value={formatPrice(stockData.pc, analysis.assetType)}
-                            hint="Previous official close"
-                          />
-                          <MetricCard
-                            label="Day Low / High"
-                            value={`${formatPrice(stockData.l, analysis.assetType)} — ${formatPrice(
-                              stockData.h,
-                              analysis.assetType
-                            )}`}
-                            hint="Intraday price range"
-                          />
-                          <MetricCard
-                            label="Open Gap"
-                            value={formatSignedPercent(analysis.openGapPct)}
-                            hint="Open vs previous close"
-                            accent={
-                              isNumber(analysis.openGapPct) && (analysis.openGapPct ?? 0) >= 0
-                                ? "green"
-                                : "rose"
-                            }
-                          />
-                        </div>
-                      </SectionCard>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                        <MetricCard
-                          label="RSI (14)"
-                          value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "Insufficient history"}
-                          hint={
-                            isNumber(analysis.rsi14)
-                              ? analysis.rsi14 > 70
-                                ? "Momentum is extended"
-                                : analysis.rsi14 < 35
-                                ? "Momentum is weak / oversold"
-                                : "Momentum is balanced"
-                              : "Loaded from candles when history is available"
-                          }
-                          accent="amber"
-                        />
-                        <MetricCard
-                          label="MACD Histogram"
-                          value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "Insufficient history"}
-                          hint="Positive usually supports bullish momentum"
-                          accent={
-                            isNumber(analysis.macd?.histogram) && (analysis.macd?.histogram ?? 0) >= 0
-                              ? "green"
-                              : "rose"
-                          }
-                        />
-                        <MetricCard
-                          label="Volume Ratio"
-                          value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "N/A"}
-                          hint="Latest volume vs 20-day average"
-                          accent="violet"
-                        />
-                        <MetricCard
-                          label="30D Volatility"
-                          value={formatPercent(analysis.volatility30d)}
-                          hint="Daily realized volatility"
-                          accent="blue"
-                        />
-                        <MetricCard
-                          label="ATR (14)"
-                          value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "Insufficient history"}
-                          hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% of spot price` : "Average true range"}
-                          accent="amber"
-                        />
-                        <MetricCard
-                          label="Support"
-                          value={formatPrice(analysis.recentSupport, analysis.assetType)}
-                          hint="Recent 20-session floor"
-                          accent="blue"
-                        />
-                        <MetricCard
-                          label="Pivot"
-                          value={formatPrice(analysis.pivot, analysis.assetType)}
-                          hint="Intraday tactical midpoint"
-                        />
-                        <MetricCard
-                          label="Resistance"
-                          value={formatPrice(analysis.recentResistance, analysis.assetType)}
-                          hint="Recent 20-session ceiling"
-                          accent="violet"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-6">
-                      <SectionCard
-                        title="Composite Breakdown"
-                        subtitle="Signal decomposition so the dashboard feels explainable instead of just decorative."
-                        icon={<FiCpu className="text-violet-400" />}
-                      >
-                        <div className="space-y-5">
-                          <ProgressBar label="Trend" value={analysis.meters.trend} tone="blue" />
-                          <ProgressBar label="Momentum" value={analysis.meters.momentum} tone="amber" />
-                          <ProgressBar label="Sentiment" value={analysis.meters.sentiment} tone="green" />
-                          <ProgressBar label="Stability" value={analysis.meters.stability} tone="violet" />
-                        </div>
-
-                        <div className="mt-6 space-y-3">
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-300 leading-7">
-                            Spot is{" "}
-                            <span className="font-bold text-white">
-                              {isNumber(analysis.ema20) && stockData.c > (analysis.ema20 ?? 0)
-                                ? "above"
-                                : isNumber(analysis.ema20)
-                                ? "below"
-                                : "not yet compared with"}
-                            </span>{" "}
-                            EMA 20{" "}
-                            {isNumber(analysis.ema20)
-                              ? `by ${formatSignedPercent(percentDiffFrom(stockData.c, analysis.ema20))}.`
-                              : "because more candle history is needed."}
-                          </div>
-
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-300 leading-7">
-                            RSI is{" "}
-                            <span className="font-bold text-white">
-                              {isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "not available yet"}
-                            </span>
-                            {isNumber(analysis.rsi14)
-                              ? analysis.rsi14 > 70
-                                ? ", which is overheated."
-                                : analysis.rsi14 < 35
-                                ? ", which is soft / oversold."
-                                : ", which is balanced."
-                              : " because the chart history is still insufficient."}
-                          </div>
-
-                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-300 leading-7">
-                            MACD histogram is{" "}
-                            <span className="font-bold text-white">
-                              {isNumber(analysis.macd?.histogram)
-                                ? formatNumber(analysis.macd?.histogram, 3)
-                                : "not ready"}
-                            </span>
-                            {isNumber(analysis.macd?.histogram)
-                              ? (analysis.macd?.histogram ?? 0) >= 0
-                                ? ", supporting bullish acceleration."
-                                : ", showing fading momentum."
-                              : " until more candles are processed."}
-                          </div>
-                        </div>
-                      </SectionCard>
-
-                      <SectionCard
-                        title="Tactical Map"
-                        subtitle="Clean execution levels for continuation, rejection, and invalidation."
-                        icon={<FiTarget className="text-cyan-400" />}
-                      >
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                            <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                              Support
-                            </span>
-                            <span className="text-lg font-black text-blue-400 break-all">
-                              {formatPrice(analysis.recentSupport, analysis.assetType)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                            <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                              Pivot
-                            </span>
-                            <span className="text-lg font-black text-white break-all">
-                              {formatPrice(analysis.pivot, analysis.assetType)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                            <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">
-                              Resistance
-                            </span>
-                            <span className="text-lg font-black text-violet-400 break-all">
-                              {formatPrice(analysis.recentResistance, analysis.assetType)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 pt-6 border-t border-white/10 space-y-3">
-                          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300 leading-7">
-                            Bull case: hold above {formatPrice(analysis.pivot, analysis.assetType)} and clear{" "}
-                            {formatPrice(analysis.recentResistance, analysis.assetType)} with expanding volume.
-                          </div>
-
-                          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-300 leading-7">
-                            Weakness trigger: lose {formatPrice(analysis.recentSupport, analysis.assetType)} and fail to reclaim the pivot.
-                          </div>
-                        </div>
-                      </SectionCard>
-                    </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
+                    <MetricCard label="Open" value={formatPrice(stockData.o, analysis.assetType)} hint="Today's opening price" accent="blue" />
+                    <MetricCard label="Prev Close" value={formatPrice(stockData.pc, analysis.assetType)} hint="Yesterday's closing price" />
+                    <MetricCard label="Day Low" value={formatPrice(stockData.l, analysis.assetType)} hint="Lowest price today" accent="rose" />
+                    <MetricCard label="Day High" value={formatPrice(stockData.h, analysis.assetType)} hint="Highest price today" accent="green" />
+                    <MetricCard label="Open Gap" value={formatSignedPercent(analysis.openGapPct)} hint="Gap from yesterday's close" accent={isNumber(analysis.openGapPct) && (analysis.openGapPct ?? 0) >= 0 ? "green" : "rose"} />
+                    <MetricCard label="Support" value={formatPrice(analysis.recentSupport, analysis.assetType)} hint="Price floor level" accent="blue" />
+                    <MetricCard label="Pivot" value={formatPrice(analysis.pivot, analysis.assetType)} hint="Key midpoint level" />
+                    <MetricCard label="Resistance" value={formatPrice(analysis.recentResistance, analysis.assetType)} hint="Price ceiling level" accent="violet" />
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                  {(isNumber(analysis.week52High) && isNumber(analysis.week52Low) && stockData.c > 0) && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-5">52-Week Range</p>
+                        <RangeBar
+                          low={analysis.week52Low!}
+                          high={analysis.week52High!}
+                          current={stockData.c}
+                          lowLabel="52W Low"
+                          highLabel="52W High"
+                          formatFn={(v) => formatPrice(v, analysis.assetType)}
+                        />
+                      </div>
+                      {stockData.l > 0 && stockData.h > 0 && (
+                        <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6">
+                          <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-5">Today&apos;s Range</p>
+                          <RangeBar
+                            low={stockData.l}
+                            high={stockData.h}
+                            current={stockData.c}
+                            lowLabel="Day Low"
+                            highLabel="Day High"
+                            formatFn={(v) => formatPrice(v, analysis.assetType)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {analysis.hasCandles && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
+                      <MetricCard
+                        label="RSI (14)"
+                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "—"}
+                        hint={
+                          isNumber(analysis.rsi14)
+                            ? analysis.rsi14 > 70 ? "Overbought — may pull back" : analysis.rsi14 < 35 ? "Oversold — may bounce" : "Healthy momentum"
+                            : "Needs more data"
+                        }
+                        accent="amber"
+                      />
+                      <MetricCard
+                        label="MACD"
+                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "—"}
+                        hint={isNumber(analysis.macd?.histogram) ? (analysis.macd?.histogram ?? 0) >= 0 ? "Bullish momentum" : "Bearish momentum" : "Needs more data"}
+                        accent={isNumber(analysis.macd?.histogram) && (analysis.macd?.histogram ?? 0) >= 0 ? "green" : "rose"}
+                      />
+                      <MetricCard label="Volume" value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "—"} hint="vs 20-day average" accent="violet" />
+                      <MetricCard label="Volatility" value={formatPercent(analysis.volatility30d)} hint="30-day price swing" accent="blue" />
+                      <MetricCard label="ATR" value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"} hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% daily range` : "Avg daily range"} accent="amber" />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                     <SectionCard
-                      title="Market Snapshot"
-                      icon={<FiShield className="text-sky-400" />}
-                      className="xl:col-span-1"
+                      title="Score Breakdown"
+                      subtitle="How the overall signal is calculated."
+                      icon={<FiCpu className="text-violet-400" />}
                     >
-                      <div className="space-y-4">
-                        {[
-                          { label: "Exchange", value: companyData?.exchange || "N/A" },
-                          { label: "Country", value: companyData?.country || "N/A" },
-                          { label: "Currency", value: companyData?.currency || "N/A" },
-                          { label: "Industry", value: companyData?.finnhubIndustry || "N/A" },
-                          { label: "IPO", value: companyData?.ipo || "N/A" },
-                          { label: "Updated", value: formatDateTime(stockData.t) },
-                        ].map((item) => (
-                          <div
-                            key={item.label}
-                            className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                          >
-                            <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">
-                              {item.label}
-                            </span>
-                            <span className="text-sm font-black text-white text-right break-words">
-                              {item.value}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="space-y-5">
+                        <ProgressBar label="Trend" value={analysis.meters.trend} tone="blue" />
+                        <ProgressBar label="Momentum" value={analysis.meters.momentum} tone="amber" />
+                        <ProgressBar label="Sentiment" value={analysis.meters.sentiment} tone="green" />
+                        <ProgressBar label="Stability" value={analysis.meters.stability} tone="violet" />
                       </div>
 
-                      {companyData?.weburl && (
-                        <a
-                          href={companyData.weburl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-5 inline-flex items-center gap-2 text-sm text-blue-300 hover:text-white transition-colors break-all"
-                        >
-                          <FiExternalLink />
-                          {companyData.weburl}
-                        </a>
-                      )}
+                      <div className="mt-6 space-y-3">
+                        {analysis.hasCandles && isNumber(analysis.rsi14) ? (
+                          <>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-300 leading-7">
+                              Price is{" "}
+                              <span className="font-bold text-white">
+                                {isNumber(analysis.ema20) && stockData.c > (analysis.ema20 ?? 0) ? "above" : "below"}
+                              </span>{" "}
+                              the 20-day average
+                              {isNumber(analysis.ema20) ? ` by ${formatSignedPercent(percentDiffFrom(stockData.c, analysis.ema20))}.` : "."}
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-gray-300 leading-7">
+                              RSI is <span className="font-bold text-white">{analysis.rsi14.toFixed(1)}</span>
+                              {analysis.rsi14 > 70 ? " — overbought, may pull back soon." : analysis.rsi14 < 35 ? " — oversold, could bounce." : " — balanced momentum."}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-4 text-sm text-gray-400 leading-7">
+                            Use the chart toolbar to add indicators like RSI, MACD, and moving averages for deeper analysis.
+                          </div>
+                        )}
+                      </div>
                     </SectionCard>
 
                     <SectionCard
-                      title="Street Target"
-                      icon={<FiTarget className="text-amber-400" />}
-                      className="xl:col-span-1"
+                      title="Key Levels"
+                      subtitle="Important price levels to watch."
+                      icon={<FiTarget className="text-cyan-400" />}
                     >
-                      {analysis.assetType === "stock" ? (
-                        priceTargetData ? (
-                          <div className="space-y-4">
-                            <MetricCard
-                              label="Mean Target"
-                              value={formatPrice(priceTargetData.targetMean ?? null, "stock")}
-                              hint={
-                                isNumber(analysis.priceTargetUpside)
-                                  ? `${formatSignedPercent(analysis.priceTargetUpside)} vs current spot`
-                                  : "Upside not available"
-                              }
-                              accent={
-                                isNumber(analysis.priceTargetUpside) && (analysis.priceTargetUpside ?? 0) >= 0
-                                  ? "green"
-                                  : "rose"
-                              }
-                            />
-                            <MetricCard
-                              label="Median Target"
-                              value={formatPrice(priceTargetData.targetMedian ?? null, "stock")}
-                              hint={`Last updated ${formatDate(priceTargetData.lastUpdated)}`}
-                              accent="blue"
-                            />
-                            <MetricCard
-                              label="High / Low"
-                              value={`${formatPrice(priceTargetData.targetLow ?? null, "stock")} — ${formatPrice(
-                                priceTargetData.targetHigh ?? null,
-                                "stock"
-                              )}`}
-                              hint="Street target range"
-                              accent="violet"
-                            />
-                          </div>
-                        ) : (
-                          <EmptyState
-                            title="No price target available"
-                            description="Price target data is not available for this stock right now."
-                          />
-                        )
-                      ) : (
-                        <EmptyState
-                          title="Targets are stock-only here"
-                          description="This price target block is only displayed for equities."
-                        />
-                      )}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-blue-500/30 hover:bg-blue-500/5">
+                          <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">Support</span>
+                          <span className="text-lg font-black text-blue-400 break-all">{formatPrice(analysis.recentSupport, analysis.assetType)}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.05]">
+                          <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">Pivot</span>
+                          <span className="text-lg font-black text-white break-all">{formatPrice(analysis.pivot, analysis.assetType)}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-violet-500/30 hover:bg-violet-500/5">
+                          <span className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold">Resistance</span>
+                          <span className="text-lg font-black text-violet-400 break-all">{formatPrice(analysis.recentResistance, analysis.assetType)}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 pt-6 border-t border-white/10 space-y-3">
+                        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300 leading-7">
+                          Bullish if price holds above {formatPrice(analysis.pivot, analysis.assetType)} and breaks {formatPrice(analysis.recentResistance, analysis.assetType)}.
+                        </div>
+                        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-300 leading-7">
+                          Bearish if price drops below {formatPrice(analysis.recentSupport, analysis.assetType)}.
+                        </div>
+                      </div>
                     </SectionCard>
 
                     <SectionCard
                       title="Analyst Consensus"
+                      subtitle="Wall Street ratings summary."
                       icon={<FiZap className="text-emerald-400" />}
-                      className="xl:col-span-1"
                     >
                       {analysis.assetType === "stock" && analysis.latestRec ? (
                         <>
                           <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-gray-900 flex">
-                            <div
-                              className="bg-green-400/90"
-                              style={{
-                                width: `${
-                                  analysis.totalRec
-                                    ? (((analysis.latestRec.strongBuy ?? 0) / analysis.totalRec) * 100)
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                            <div
-                              className="bg-emerald-500/80"
-                              style={{
-                                width: `${
-                                  analysis.totalRec
-                                    ? (((analysis.latestRec.buy ?? 0) / analysis.totalRec) * 100)
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                            <div
-                              className="bg-gray-500/70"
-                              style={{
-                                width: `${
-                                  analysis.totalRec
-                                    ? (((analysis.latestRec.hold ?? 0) / analysis.totalRec) * 100)
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                            <div
-                              className="bg-rose-500/80"
-                              style={{
-                                width: `${
-                                  analysis.totalRec
-                                    ? (((analysis.latestRec.sell ?? 0) / analysis.totalRec) * 100)
-                                    : 0
-                                }%`,
-                              }}
-                            />
-                            <div
-                              className="bg-red-500/90"
-                              style={{
-                                width: `${
-                                  analysis.totalRec
-                                    ? (((analysis.latestRec.strongSell ?? 0) / analysis.totalRec) * 100)
-                                    : 0
-                                }%`,
-                              }}
-                            />
+                            <div className="bg-green-400/90" style={{ width: `${analysis.totalRec ? (((analysis.latestRec.strongBuy ?? 0) / analysis.totalRec) * 100) : 0}%` }} />
+                            <div className="bg-emerald-500/80" style={{ width: `${analysis.totalRec ? (((analysis.latestRec.buy ?? 0) / analysis.totalRec) * 100) : 0}%` }} />
+                            <div className="bg-gray-500/70" style={{ width: `${analysis.totalRec ? (((analysis.latestRec.hold ?? 0) / analysis.totalRec) * 100) : 0}%` }} />
+                            <div className="bg-rose-500/80" style={{ width: `${analysis.totalRec ? (((analysis.latestRec.sell ?? 0) / analysis.totalRec) * 100) : 0}%` }} />
+                            <div className="bg-red-500/90" style={{ width: `${analysis.totalRec ? (((analysis.latestRec.strongSell ?? 0) / analysis.totalRec) * 100) : 0}%` }} />
                           </div>
-
                           <div className="grid grid-cols-5 gap-2 mt-4">
                             {[
                               { label: "SB", value: analysis.latestRec.strongBuy ?? 0 },
@@ -2106,109 +1781,125 @@ export default function Home() {
                               { label: "S", value: analysis.latestRec.sell ?? 0 },
                               { label: "SS", value: analysis.latestRec.strongSell ?? 0 },
                             ].map((item) => (
-                              <div
-                                key={item.label}
-                                className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center"
-                              >
-                                <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">
-                                  {item.label}
-                                </p>
+                              <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                                <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.label}</p>
                                 <p className="text-lg font-black text-white mt-1">{item.value}</p>
                               </div>
                             ))}
                           </div>
-
-                          <div className="mt-4 space-y-2 text-sm text-gray-300">
-                            <p>
-                              Period: <span className="font-bold text-white">{analysis.latestRec.period}</span>
-                            </p>
-                            <p>
-                              Bullish share:{" "}
-                              <span className="font-bold text-emerald-400">
-                                {formatPercent(analysis.bullishPct)}
-                              </span>
-                            </p>
-                            <p>
-                              Bearish share:{" "}
-                              <span className="font-bold text-rose-400">
-                                {formatPercent(analysis.bearishPct)}
-                              </span>
-                            </p>
+                          <div className="mt-4 grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-center">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400/60 font-bold">Bullish</p>
+                              <p className="text-xl font-black text-emerald-400 mt-1">{formatPercent(analysis.bullishPct, 0)}</p>
+                            </div>
+                            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-center">
+                              <p className="text-[10px] uppercase tracking-[0.2em] text-rose-400/60 font-bold">Bearish</p>
+                              <p className="text-xl font-black text-rose-400 mt-1">{formatPercent(analysis.bearishPct, 0)}</p>
+                            </div>
                           </div>
+
+                          {recommendationData.length > 1 && (
+                            <div className="mt-5 pt-5 border-t border-white/10">
+                              <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold mb-4">Trend (last {Math.min(recommendationData.length, 4)} months)</p>
+                              <div className="flex items-end gap-2">
+                                {recommendationData.slice(0, 4).reverse().map((rec, i) => {
+                                  const total = rec.strongBuy + rec.buy + rec.hold + rec.sell + rec.strongSell;
+                                  if (!total) return null;
+                                  return (
+                                    <div key={`rec-${i}`} className="flex-1 flex flex-col gap-[1px] rounded-lg overflow-hidden" title={rec.period}>
+                                      <div className="bg-green-400/90 transition-all" style={{ height: `${Math.max(2, (rec.strongBuy / total) * 80)}px` }} />
+                                      <div className="bg-emerald-500/80 transition-all" style={{ height: `${Math.max(2, (rec.buy / total) * 80)}px` }} />
+                                      <div className="bg-gray-500/70 transition-all" style={{ height: `${Math.max(2, (rec.hold / total) * 80)}px` }} />
+                                      <div className="bg-rose-500/80 transition-all" style={{ height: `${Math.max(2, (rec.sell / total) * 80)}px` }} />
+                                      <div className="bg-red-500/90 transition-all" style={{ height: `${Math.max(2, (rec.strongSell / total) * 80)}px` }} />
+                                      <p className="text-[9px] text-gray-500 text-center mt-1 truncate">{rec.period?.slice(5) || ""}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <EmptyState
-                          title="No analyst panel yet"
-                          description="Analyst consensus is unavailable for this asset or ticker at the moment."
+                          title="Not available"
+                          description={analysis.assetType === "stock" ? "No analyst data for this stock." : "Analyst ratings are only available for stocks."}
                         />
                       )}
                     </SectionCard>
+                  </div>
 
-                    <SectionCard
-                      title="Recent Earnings"
-                      icon={<FiCalendar className="text-violet-400" />}
-                      className="xl:col-span-1"
-                    >
-                      {analysis.assetType === "stock" ? (
-                        earningsData.length > 0 ? (
+                  {analysis.assetType === "stock" && (
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                      <SectionCard
+                        title="Price Targets"
+                        subtitle="Where analysts think the price is headed."
+                        icon={<FiTarget className="text-amber-400" />}
+                      >
+                        {priceTargetData ? (
+                          <div className="space-y-4">
+                            <MetricCard label="Average Target" value={formatPrice(priceTargetData.targetMean ?? null, "stock")} hint={isNumber(analysis.priceTargetUpside) ? `${formatSignedPercent(analysis.priceTargetUpside)} from current price` : "Upside not available"} accent={isNumber(analysis.priceTargetUpside) && (analysis.priceTargetUpside ?? 0) >= 0 ? "green" : "rose"} />
+                            <MetricCard label="Target Range" value={`${formatPrice(priceTargetData.targetLow ?? null, "stock")} — ${formatPrice(priceTargetData.targetHigh ?? null, "stock")}`} hint="Lowest to highest analyst target" accent="violet" />
+                          </div>
+                        ) : (
+                          <EmptyState title="No targets available" description="Analyst price targets haven't been published for this stock." />
+                        )}
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Recent Earnings"
+                        subtitle="Did the company beat or miss expectations?"
+                        icon={<FiCalendar className="text-violet-400" />}
+                      >
+                        {earningsData.length > 0 ? (
                           <div className="space-y-3">
                             {earningsData.slice(0, 3).map((item, index) => {
-                              const surpriseValue = isNumber(item.surprisePercent)
-                                ? item.surprisePercent
-                                : percentDiffFrom(item.actual ?? null, item.estimate ?? null);
-
+                              const surpriseValue = isNumber(item.surprisePercent) ? item.surprisePercent : percentDiffFrom(item.actual ?? null, item.estimate ?? null);
                               return (
-                                <div
-                                  key={`${item.period}-${index}`}
-                                  className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
-                                >
+                                <div key={`${item.period}-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
                                   <div className="flex items-center justify-between gap-4">
-                                    <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">
-                                      {item.period || "Period N/A"}
-                                    </span>
-                                    <span
-                                      className={`text-sm font-black ${
-                                        isNumber(surpriseValue) && (surpriseValue ?? 0) >= 0
-                                          ? "text-emerald-400"
-                                          : "text-rose-400"
-                                      }`}
-                                    >
-                                      {formatSignedPercent(surpriseValue)}
-                                    </span>
+                                    <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.period || "—"}</span>
+                                    <span className={`text-sm font-black ${isNumber(surpriseValue) && (surpriseValue ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{formatSignedPercent(surpriseValue)}</span>
                                   </div>
-
-                                  <div className="mt-3 space-y-2 text-sm text-gray-300">
-                                    <p>
-                                      EPS actual:{" "}
-                                      <span className="font-bold text-white">
-                                        {formatNumber(item.actual ?? null, 2)}
-                                      </span>
-                                    </p>
-                                    <p>
-                                      EPS estimate:{" "}
-                                      <span className="font-bold text-white">
-                                        {formatNumber(item.estimate ?? null, 2)}
-                                      </span>
-                                    </p>
+                                  <div className="mt-3 text-sm text-gray-300">
+                                    <span>EPS: <span className="font-bold text-white">{formatNumber(item.actual ?? null, 2)}</span> vs <span className="font-bold text-white">{formatNumber(item.estimate ?? null, 2)}</span> expected</span>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <EmptyState
-                            title="No recent earnings rows"
-                            description="Recent earnings surprises were not returned for this ticker."
-                          />
-                        )
-                      ) : (
-                        <EmptyState
-                          title="Earnings are stock-specific"
-                          description="Crypto and FX symbols do not use the same company earnings block."
-                        />
-                      )}
-                    </SectionCard>
-                  </div>
+                          <EmptyState title="No earnings data" description="Earnings reports haven't been published for this stock yet." />
+                        )}
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Company Info"
+                        subtitle="Basic details about this company."
+                        icon={<FiShield className="text-sky-400" />}
+                      >
+                        <div className="space-y-4">
+                          {[
+                            { label: "Exchange", value: companyData?.exchange || "—" },
+                            { label: "Country", value: companyData?.country || "—" },
+                            { label: "Currency", value: companyData?.currency || "—" },
+                            { label: "Industry", value: companyData?.finnhubIndustry || "—" },
+                            { label: "IPO Date", value: companyData?.ipo || "—" },
+                          ].map((item) => (
+                            <div key={item.label} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                              <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.label}</span>
+                              <span className="text-sm font-black text-white text-right break-words">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {companyData?.weburl && (
+                          <a href={companyData.weburl} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm text-blue-300 hover:text-white transition-colors break-all">
+                            <FiExternalLink /> {companyData.weburl}
+                          </a>
+                        )}
+                      </SectionCard>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -2216,196 +1907,196 @@ export default function Home() {
                 <div className="space-y-6">
                   <SectionCard
                     title="Technical Chart"
-                    subtitle="Candles and moving averages, with most technical indicators computed locally from the candle history so you do not keep seeing dashes."
+                    subtitle="Interactive TradingView chart with full technical analysis tools."
                     icon={<FiBarChart2 className="text-blue-500" />}
                   >
-                    <CandlestickChart
-                      candles={candlesData}
-                      assetType={analysis.assetType}
-                      currentPrice={stockData.c}
-                    />
+                    <TradingViewChart symbol={ticker} />
                   </SectionCard>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    <MetricCard
-                      label="RSI (14)"
-                      value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "Insufficient history"}
-                      hint="Computed from daily candles"
-                      accent="amber"
+                  {analysis.hasCandles ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                      <MetricCard
+                        label="RSI (14)"
+                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "—"}
+                        hint="Computed from daily candles"
+                        accent="amber"
+                      />
+                      <MetricCard
+                        label="EMA 20"
+                        value={isNumber(analysis.ema20) ? formatPrice(analysis.ema20, analysis.assetType) : "—"}
+                        hint={
+                          isNumber(analysis.ema20)
+                            ? `${formatSignedPercent(percentDiffFrom(stockData.c, analysis.ema20))} vs spot`
+                            : "Needs 20+ candles"
+                        }
+                        accent="blue"
+                      />
+                      <MetricCard
+                        label="EMA 50"
+                        value={isNumber(analysis.ema50) ? formatPrice(analysis.ema50, analysis.assetType) : "—"}
+                        hint="Medium trend filter"
+                        accent="violet"
+                      />
+                      <MetricCard
+                        label="SMA 20"
+                        value={isNumber(analysis.sma20) ? formatPrice(analysis.sma20, analysis.assetType) : "—"}
+                        hint="Short moving average"
+                      />
+                      <MetricCard
+                        label="SMA 50"
+                        value={isNumber(analysis.sma50) ? formatPrice(analysis.sma50, analysis.assetType) : "—"}
+                        hint="Intermediate moving average"
+                      />
+                      <MetricCard
+                        label="SMA 200"
+                        value={isNumber(analysis.sma200) ? formatPrice(analysis.sma200, analysis.assetType) : "—"}
+                        hint="Long-term trend regime"
+                        accent="green"
+                      />
+                      <MetricCard
+                        label="MACD"
+                        value={isNumber(analysis.macd?.macd) ? formatNumber(analysis.macd?.macd, 3) : "—"}
+                        hint="12/26 EMA spread"
+                        accent="blue"
+                      />
+                      <MetricCard
+                        label="Signal Line"
+                        value={isNumber(analysis.macd?.signal) ? formatNumber(analysis.macd?.signal, 3) : "—"}
+                        hint="9-period EMA on MACD"
+                      />
+                      <MetricCard
+                        label="Histogram"
+                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "—"}
+                        hint={
+                          isNumber(analysis.macd?.histogram)
+                            ? (analysis.macd?.histogram ?? 0) >= 0
+                              ? "Bullish acceleration"
+                              : "Bearish acceleration"
+                            : "Needs 35+ candles"
+                        }
+                        accent={
+                          isNumber(analysis.macd?.histogram) && (analysis.macd?.histogram ?? 0) >= 0
+                            ? "green"
+                            : "rose"
+                        }
+                      />
+                      <MetricCard
+                        label="ATR (14)"
+                        value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"}
+                        hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% of spot price` : "Average true range"}
+                        accent="amber"
+                      />
+                      <MetricCard
+                        label="Day Position"
+                        value={analysis.dayRangePos !== null ? `${analysis.dayRangePos.toFixed(1)}%` : "—"}
+                        hint="Placement inside today's low/high band"
+                        accent="blue"
+                      />
+                      <MetricCard
+                        label="52W Position"
+                        value={analysis.week52Pos !== null ? `${analysis.week52Pos.toFixed(1)}%` : "—"}
+                        hint="Placement inside annual range"
+                        accent="violet"
+                      />
+                      <MetricCard
+                        label="30D Volatility"
+                        value={formatPercent(analysis.volatility30d)}
+                        hint="Daily realized volatility"
+                      />
+                      <MetricCard
+                        label="Volume Ratio"
+                        value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "—"}
+                        hint="Latest volume vs 20D average"
+                        accent="green"
+                      />
+                      <MetricCard
+                        label="Recent Support"
+                        value={formatPrice(analysis.recentSupport, analysis.assetType)}
+                        hint="20-session floor"
+                        accent="blue"
+                      />
+                      <MetricCard
+                        label="Recent Resistance"
+                        value={formatPrice(analysis.recentResistance, analysis.assetType)}
+                        hint="20-session ceiling"
+                        accent="violet"
+                      />
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="Technical indicators are shown on the chart"
+                      description="Use the TradingView chart above to add RSI, MACD, moving averages, and other indicators directly. Click the indicators button in the chart toolbar."
                     />
-                    <MetricCard
-                      label="EMA 20"
-                      value={isNumber(analysis.ema20) ? formatPrice(analysis.ema20, analysis.assetType) : "Insufficient history"}
-                      hint={
-                        isNumber(analysis.ema20)
-                          ? `${formatSignedPercent(percentDiffFrom(stockData.c, analysis.ema20))} vs spot`
-                          : "Needs more candles"
-                      }
-                      accent="blue"
-                    />
-                    <MetricCard
-                      label="EMA 50"
-                      value={isNumber(analysis.ema50) ? formatPrice(analysis.ema50, analysis.assetType) : "Insufficient history"}
-                      hint="Medium trend filter"
-                      accent="violet"
-                    />
-                    <MetricCard
-                      label="SMA 20"
-                      value={isNumber(analysis.sma20) ? formatPrice(analysis.sma20, analysis.assetType) : "Insufficient history"}
-                      hint="Short moving average"
-                    />
-                    <MetricCard
-                      label="SMA 50"
-                      value={isNumber(analysis.sma50) ? formatPrice(analysis.sma50, analysis.assetType) : "Insufficient history"}
-                      hint="Intermediate moving average"
-                    />
-                    <MetricCard
-                      label="SMA 200"
-                      value={isNumber(analysis.sma200) ? formatPrice(analysis.sma200, analysis.assetType) : "Insufficient history"}
-                      hint="Long-term trend regime"
-                      accent="green"
-                    />
-                    <MetricCard
-                      label="MACD"
-                      value={isNumber(analysis.macd?.macd) ? formatNumber(analysis.macd?.macd, 3) : "Insufficient history"}
-                      hint="12/26 EMA spread"
-                      accent="blue"
-                    />
-                    <MetricCard
-                      label="Signal Line"
-                      value={isNumber(analysis.macd?.signal) ? formatNumber(analysis.macd?.signal, 3) : "Insufficient history"}
-                      hint="9-period EMA on MACD"
-                    />
-                    <MetricCard
-                      label="Histogram"
-                      value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "Insufficient history"}
-                      hint={
-                        isNumber(analysis.macd?.histogram)
-                          ? (analysis.macd?.histogram ?? 0) >= 0
-                            ? "Bullish acceleration"
-                            : "Bearish acceleration"
-                          : "Needs more candles"
-                      }
-                      accent={
-                        isNumber(analysis.macd?.histogram) && (analysis.macd?.histogram ?? 0) >= 0
-                          ? "green"
-                          : "rose"
-                      }
-                    />
-                    <MetricCard
-                      label="ATR (14)"
-                      value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "Insufficient history"}
-                      hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% of spot price` : "Average true range"}
-                      accent="amber"
-                    />
-                    <MetricCard
-                      label="Day Position"
-                      value={analysis.dayRangePos !== null ? `${analysis.dayRangePos.toFixed(1)}%` : "N/A"}
-                      hint="Placement inside today's low/high band"
-                      accent="blue"
-                    />
-                    <MetricCard
-                      label="52W Position"
-                      value={analysis.week52Pos !== null ? `${analysis.week52Pos.toFixed(1)}%` : "N/A"}
-                      hint="Placement inside annual range"
-                      accent="violet"
-                    />
-                    <MetricCard
-                      label="30D Volatility"
-                      value={formatPercent(analysis.volatility30d)}
-                      hint="Daily realized volatility"
-                    />
-                    <MetricCard
-                      label="Volume Ratio"
-                      value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "N/A"}
-                      hint="Latest volume vs 20D average"
-                      accent="green"
-                    />
-                    <MetricCard
-                      label="Recent Support"
-                      value={formatPrice(analysis.recentSupport, analysis.assetType)}
-                      hint="20-session floor"
-                      accent="blue"
-                    />
-                    <MetricCard
-                      label="Recent Resistance"
-                      value={formatPrice(analysis.recentResistance, analysis.assetType)}
-                      hint="20-session ceiling"
-                      accent="violet"
-                    />
-                  </div>
+                  )}
 
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <SectionCard
-                      title="Indicator Interpretation"
-                      icon={<FiCpu className="text-violet-400" />}
-                    >
-                      <div className="space-y-4 text-sm text-gray-300 leading-7">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                          Trend regime:{" "}
-                          <span className="font-bold text-white">{analysis.trendBias}</span>.{" "}
-                          {isNumber(analysis.sma50) && isNumber(analysis.sma200)
-                            ? analysis.sma50 > analysis.sma200
-                              ? "The 50-day average is above the 200-day average, which usually supports a healthier primary trend."
-                              : "The 50-day average is below the 200-day average, which usually points to a weaker long-term regime."
-                            : "Longer moving averages need more loaded history."}
+                  {analysis.hasCandles && (
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                      <SectionCard
+                        title="What It Means"
+                        icon={<FiCpu className="text-violet-400" />}
+                      >
+                        <div className="space-y-4 text-sm text-gray-300 leading-7">
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                            Trend: <span className="font-bold text-white">{analysis.trendBias}</span>.{" "}
+                            {isNumber(analysis.sma50) && isNumber(analysis.sma200)
+                              ? analysis.sma50 > analysis.sma200
+                                ? "The short-term trend is stronger than the long-term — a positive sign."
+                                : "The short-term trend is weaker than the long-term — be cautious."
+                              : "Not enough data to compare trends yet."}
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                            Momentum:{" "}
+                            <span className="font-bold text-white">
+                              {isNumber(analysis.rsi14) ? `RSI ${analysis.rsi14.toFixed(0)}` : "—"}
+                            </span>
+                            {isNumber(analysis.rsi14)
+                              ? analysis.rsi14 > 70
+                                ? " — overbought, the price may pull back."
+                                : analysis.rsi14 < 35
+                                ? " — oversold, the price could bounce back."
+                                : " — balanced, no extreme pressure either way."
+                              : " — needs more price history."}
+                          </div>
+
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                            Daily movement:{" "}
+                            <span className="font-bold text-white">
+                              {isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"}
+                            </span>
+                            {isNumber(analysis.atrPct) ? ` on average (${analysis.atrPct.toFixed(2)}% of price).` : "."}
+                          </div>
+                        </div>
+                      </SectionCard>
+
+                      <SectionCard
+                        title="Score Overview"
+                        icon={<FiShield className="text-sky-400" />}
+                      >
+                        <div className="space-y-5">
+                          <ProgressBar label="Stability" value={analysis.meters.stability} tone="violet" />
+                          <ProgressBar label="Trend" value={analysis.meters.trend} tone="blue" />
+                          <ProgressBar label="Momentum" value={analysis.meters.momentum} tone="amber" />
+                          <ProgressBar label="Sentiment" value={analysis.meters.sentiment} tone="green" />
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                          Momentum read:{" "}
-                          <span className="font-bold text-white">
-                            {isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "N/A"}
-                          </span>
-                          {isNumber(analysis.rsi14)
-                            ? analysis.rsi14 > 70
-                              ? " indicates an overheated move."
-                              : analysis.rsi14 < 35
-                              ? " indicates oversold pressure."
-                              : " indicates a more balanced momentum band."
-                            : " will appear once there are enough candles."}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                          <MetricCard
+                            label="Risk Level"
+                            value={analysis.riskLevel}
+                            hint="Based on how much the price swings"
+                            accent="rose"
+                          />
+                          <MetricCard
+                            label="Overall Score"
+                            value={`${Math.round(analysis.score)}/100`}
+                            hint="Combined rating from all factors"
+                            accent="green"
+                          />
                         </div>
-
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                          Volatility / range: ATR is{" "}
-                          <span className="font-bold text-white">
-                            {isNumber(analysis.atr14)
-                              ? formatPrice(analysis.atr14, analysis.assetType)
-                              : "N/A"}
-                          </span>
-                          {isNumber(analysis.atrPct)
-                            ? `, roughly ${analysis.atrPct.toFixed(2)}% of the spot price.`
-                            : "."}
-                        </div>
-                      </div>
-                    </SectionCard>
-
-                    <SectionCard
-                      title="Risk & Positioning"
-                      icon={<FiShield className="text-sky-400" />}
-                    >
-                      <div className="space-y-5">
-                        <ProgressBar label="Stability" value={analysis.meters.stability} tone="violet" />
-                        <ProgressBar label="Trend alignment" value={analysis.meters.trend} tone="blue" />
-                        <ProgressBar label="Momentum quality" value={analysis.meters.momentum} tone="amber" />
-                        <ProgressBar label="Sentiment support" value={analysis.meters.sentiment} tone="green" />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                        <MetricCard
-                          label="Risk Profile"
-                          value={analysis.riskLevel}
-                          hint="Derived from volatility, ATR and beta when available"
-                          accent="rose"
-                        />
-                        <MetricCard
-                          label="Composite Score"
-                          value={`${Math.round(analysis.score)}/100`}
-                          hint="Weighted blend of trend, momentum, sentiment and stability"
-                          accent="green"
-                        />
-                      </div>
-                    </SectionCard>
-                  </div>
+                      </SectionCard>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2421,7 +2112,7 @@ export default function Home() {
                           <MetricCard
                             label="P / E"
                             value={formatNumber(basicFinancials?.metric?.peBasicExclExtraTTM ?? null, 2)}
-                            hint="Trailing basic P/E"
+                            hint="Price vs earnings — lower may mean cheaper"
                           />
                           <MetricCard
                             label="EPS"
@@ -2429,7 +2120,7 @@ export default function Home() {
                               basicFinancials?.metric?.epsBasicExclExtraItemsTTM ?? null,
                               2
                             )}
-                            hint="Trailing EPS"
+                            hint="Earnings per share over the last year"
                             accent="green"
                           />
                           <MetricCard
@@ -2437,19 +2128,19 @@ export default function Home() {
                             value={formatPercent(
                               basicFinancials?.metric?.dividendYieldIndicatedAnnual ?? null
                             )}
-                            hint="Indicated annual yield"
+                            hint="Annual cash return to shareholders"
                           />
                           <MetricCard
                             label="Beta"
                             value={formatNumber(basicFinancials?.metric?.beta ?? null, 2)}
-                            hint="Relative market sensitivity"
+                            hint="How much the stock moves vs the market"
                             accent="rose"
                           />
                         </div>
                       </SectionCard>
 
                       <SectionCard
-                        title="Balance Sheet & Resilience"
+                        title="Financial Health"
                         icon={<FiShield className="text-sky-400" />}
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2459,7 +2150,7 @@ export default function Home() {
                               basicFinancials?.metric?.currentRatioQuarterly ?? null,
                               2
                             )}
-                            hint="Short-term liquidity"
+                            hint="Can the company pay its short-term bills?"
                             accent="blue"
                           />
                           <MetricCard
@@ -2468,7 +2159,7 @@ export default function Home() {
                               basicFinancials?.metric?.totalDebtToEquityQuarterly ?? null,
                               2
                             )}
-                            hint="Leverage pressure"
+                            hint="How much debt vs equity — lower is safer"
                             accent="rose"
                           />
                           <MetricCard
@@ -2636,8 +2327,8 @@ export default function Home() {
                     icon={<FiBriefcase className="text-amber-400" />}
                   >
                     <EmptyState
-                      title="Fundamentals are equity-focused here"
-                      description="This tab is designed for company fundamentals like valuation, balance sheet, earnings and street targets. For crypto or forex, the strongest view remains the technical and market-structure tabs."
+                      title="Stocks only"
+                      description="Financial data like P/E ratio, earnings, and balance sheet info is only available for stocks. Use the Overview or Technical tabs for crypto and forex."
                     />
                   </SectionCard>
                 )
@@ -2646,7 +2337,7 @@ export default function Home() {
               {activeTab === "news" && (
                 <SectionCard
                   title="Company News Feed"
-                  subtitle="Recent headlines for equity symbols, displayed in a cleaner card layout."
+                  subtitle="Latest news articles about this company."
                   icon={<FiGlobe className="text-blue-400" />}
                   headerRight={
                     <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-gray-400 font-bold">
@@ -2678,6 +2369,19 @@ export default function Home() {
             </div>
           </div>
         )}
+        <footer className="relative z-10 border-t border-white/5 mt-0">
+          <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-black tracking-tighter bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                STOCKIFY
+              </span>
+              <span className="text-xs text-gray-600">Real-time Market Intelligence</span>
+            </div>
+            <p className="text-xs text-gray-600 text-center">
+              Data provided by Finnhub. Charts powered by TradingView. Not financial advice.
+            </p>
+          </div>
+        </footer>
       </div>
     </>
   );

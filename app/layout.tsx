@@ -4,8 +4,8 @@ import { ThemeProvider } from "next-themes";
 import "styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "Next JS SaaS Starter Template",
-  description: "Next JS SaaS Starter Template",
+  title: "Stockify",
+  description: "Premium stock, crypto, and forex analysis with technicals, fundamentals, and news.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

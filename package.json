@@ -1,7 +1,7 @@
 {
-  "name": "nextjs-saas-starter-template",
+  "name": "stockify",
   "version": "1.0.0",
-  "description": "Nextjs Saas Starter Template",
+  "description": "Real-time stock, crypto, and forex market analysis dashboard",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

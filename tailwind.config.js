@@ -27,7 +27,6 @@ module.exports = {
           "Noto Color Emoji",
         ],
       },
-      // --- הנה התוספת שלנו לאנימציה ---
       keyframes: {
         float: {
           "0%, 100%": { transform: "translate(0px, 0px) scale(1)" },
@@ -38,7 +37,6 @@ module.exports = {
       animation: {
         blob: "float 8s infinite alternate ease-in-out",
       },
-      // ---------------------------------
     },
   },
   plugins: [],

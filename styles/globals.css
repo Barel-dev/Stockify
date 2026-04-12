@@ -17,3 +17,66 @@
 .animation-delay-2000 {
   animation-delay: 2s;
 }
+
+/* Background blob animation (larger movement) */
+@keyframes superFloat {
+  0% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(100px, -100px) scale(1.3); }
+  66% { transform: translate(-100px, 100px) scale(0.7); }
+  100% { transform: translate(0px, 0px) scale(1); }
+}
+
+.force-animate-blob {
+  animation: superFloat 4.5s infinite alternate ease-in-out;
+}
+
+.force-delay {
+  animation-delay: 2s;
+}
+
+/* TradingView chart — lock the container height so the widget iframe can't collapse it */
+.tv-chart-wrapper {
+  height: 820px !important;
+  min-height: 820px !important;
+}
+
+.tv-chart-wrapper iframe {
+  height: 100% !important;
+  min-height: 820px !important;
+}
+
+.tv-chart-wrapper .tradingview-widget-container__widget {
+  height: 100% !important;
+  min-height: 820px !important;
+}
+
+/* Scroll-to-top button animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Price pulse on update */
+@keyframes pricePulse {
+  0%   { opacity: 0.6; transform: scale(0.97); }
+  50%  { opacity: 1;   transform: scale(1.02); }
+  100% { opacity: 1;   transform: scale(1); }
+}
+
+.animate-price-in {
+  animation: pricePulse 0.5s ease-out;
+}
+
+/* Hide scrollbar across browsers */
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
