@@ -1,171 +1,158 @@
 <p align="center">
-  <img src="public/favicon.svg" width="80" alt="Stockify Logo" />
+  <img src="public/favicon.svg" width="100" alt="Stockify Logo" />
 </p>
 
-<h1 align="center">Stockify</h1>
+<h1 align="center">✨ Stockify</h1>
 
 <p align="center">
-  <b>Real-time stock, crypto, and forex analysis dashboard</b><br/>
-  Type any ticker and instantly get price data, technical analysis, analyst ratings, earnings, and interactive charts — all in one place.
+  <b>🚀 Real-time Stock, Crypto & Forex Intelligence Dashboard</b><br/>
+  <i>One search. Full market breakdown. Instant insights.</i>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-14-black?logo=next.js" alt="Next.js 14" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/API-Finnhub-green" alt="Finnhub API" />
-  <img src="https://img.shields.io/badge/Charts-TradingView-orange" alt="TradingView" />
+  <img src="https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js" alt="Next.js 14" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Finnhub-API-22c55e?style=for-the-badge" alt="Finnhub API" />
+  <img src="https://img.shields.io/badge/TradingView-Charts-f97316?style=for-the-badge" alt="TradingView" />
 </p>
 
 ---
 
-## What It Does
+## 🎯 What Is Stockify?
 
-Stockify is a single-page market intelligence dashboard. Enter a ticker symbol (like `AAPL`, `BTCUSDT`, or `EUR/USD`) and get a complete breakdown:
+Stockify is a **premium market intelligence dashboard** built with Next.js. Enter any ticker — stocks (`AAPL`), crypto (`BTCUSDT`), or forex (`EUR/USD`) — and get a **complete analysis** in seconds.
 
-- **Live price data** — current price, daily change, open, high, low, previous close
-- **Interactive TradingView chart** — full-featured chart with drawing tools, indicators (RSI, MACD, SMA, etc.), and multiple timeframes
-- **Technical analysis** — RSI, MACD, moving averages, ATR, volatility, support/resistance levels — all computed client-side
-- **Composite score** — a weighted signal (Strong Buy → Strong Sell) combining trend, momentum, sentiment, and stability
-- **Analyst ratings** — Wall Street consensus, price targets, and recommendation trends
-- **Earnings history** — past quarterly results with actual vs. estimated EPS and surprise percentage
-- **Latest news** — recent headlines related to the ticker
-- **Company info** — sector, industry, market cap, IPO date, and logo
-
-Everything is written in plain, easy-to-understand language — no finance jargon.
+> 💡 No finance jargon. Everything explained in plain language.
 
 ---
 
-## Features
+## 🔥 Features
 
-| Feature | Description |
-|---|---|
-| **Multi-asset support** | Stocks, crypto, and forex pairs |
-| **Smart search** | Debounced input with autocomplete suggestions and race condition handling |
-| **TradingView charts** | Professional-grade interactive charts embedded directly |
-| **Client-side technicals** | RSI, MACD, SMA, EMA, ATR, and volatility calculated in the browser |
-| **Composite scoring** | Weighted algorithm combining 4 market dimensions into a single signal |
-| **Dark theme** | Sleek dark glassmorphism design with animated background |
-| **Responsive** | Works on desktop, tablet, and mobile |
-| **Hover effects** | Smooth interactive animations on all cards and elements |
-| **Tabbed layout** | Overview, Technical, Fundamentals, and News tabs to organize data |
+| | Feature | Description |
+|---|---|---|
+| 📊 | **Live Market Data** | Real-time price, daily change, open/high/low, previous close |
+| 📈 | **Interactive Charts** | Full TradingView charts with drawing tools, indicators & timeframes |
+| 🧠 | **Technical Analysis** | RSI, MACD, SMA, EMA, ATR, volatility, support & resistance — all computed client-side |
+| 🎯 | **Composite Score** | Weighted signal (Strong Buy → Strong Sell) combining trend, momentum, sentiment & stability |
+| 🏦 | **Analyst Ratings** | Wall Street consensus, price targets & recommendation trends |
+| 💰 | **Earnings History** | Quarterly results with actual vs. estimated EPS & surprise % |
+| 📰 | **Latest News** | Recent headlines with direct links to full articles |
+| 🏢 | **Company Profile** | Sector, industry, market cap, IPO date & logo |
+| 🌙 | **Dark Glassmorphism UI** | Sleek animated dark theme with blur effects & glow animations |
+| 📱 | **Fully Responsive** | Desktop, tablet & mobile optimized |
 
 ---
 
-## Getting Started
+## 🖥️ Screenshots
+
+<p align="center">
+  <i>Search any ticker and get instant market intelligence</i>
+</p>
+
+---
+
+## ⚡ Quick Start
 
 ### Prerequisites
 
-- **Node.js** 18 or later
-- **npm** (comes with Node.js)
-- A free **Finnhub API key** — [sign up here](https://finnhub.io/register)
+- **Node.js** 18+
+- A free **Finnhub API key** → [Get one here](https://finnhub.io/register)
 
-### Installation
+### Setup
 
-1. **Clone the repository**
+```bash
+# 1️⃣ Clone the repo
+git clone https://github.com/your-username/stockify.git
+cd stockify
 
-   ```bash
-   git clone https://github.com/your-username/stockify.git
-   cd stockify
-   ```
+# 2️⃣ Install dependencies
+npm install
 
-2. **Install dependencies**
+# 3️⃣ Set up your API key
+cp .env.example .env.local
+# Edit .env.local and paste your Finnhub API key
 
-   ```bash
-   npm install
-   ```
+# 4️⃣ Start the dev server
+npm run dev
+```
 
-3. **Set up your API key**
-
-   Create a `.env.local` file in the root directory:
-
-   ```
-   NEXT_PUBLIC_FINNHUB_API_KEY=your_finnhub_api_key_here
-   ```
-
-   You can also copy the example file:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Then replace `your_finnhub_api_key_here` with your actual key from [finnhub.io](https://finnhub.io).
-
-4. **Start the development server**
-
-   ```bash
-   npm run dev
-   ```
-
-5. **Open the app**
-
-   Visit [http://localhost:3000](http://localhost:3000) in your browser.
+Then open [http://localhost:3000](http://localhost:3000) 🎉
 
 ---
 
-## Usage
+## 🧭 How To Use
 
-1. Type a ticker symbol into the search bar (e.g., `AAPL`, `MSFT`, `BTCUSDT`, `EUR/USD`)
-2. Select a suggestion from the dropdown or press Enter
-3. Browse the tabs:
-   - **Overview** — chart, price metrics, composite score, key levels, analyst consensus
-   - **Technical** — detailed chart, RSI, MACD, moving averages, ATR, volatility
-   - **Fundamentals** — earnings history, company profile, price targets
-   - **News** — latest headlines with links to full articles
+1. 🔍 **Search** — Type a ticker (`AAPL`, `MSFT`, `BTCUSDT`, `EUR/USD`)
+2. 📋 **Select** — Pick from autocomplete suggestions or press Enter
+3. 📊 **Explore** — Browse the tabs:
+
+| Tab | What You'll Find |
+|---|---|
+| 📊 **Overview** | Chart, price metrics, composite score, key levels, analyst consensus |
+| 📈 **Technical** | RSI, MACD, moving averages, ATR, volatility breakdown |
+| 🏦 **Fundamentals** | Earnings history, company profile, price targets |
+| 📰 **News** | Latest headlines with links to full articles |
 
 ---
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 | Technology | Purpose |
 |---|---|
-| [Next.js 14](https://nextjs.org) | React framework with App Router |
-| [TypeScript](https://typescriptlang.org) | Type safety |
-| [Tailwind CSS](https://tailwindcss.com) | Utility-first styling |
-| [next-themes](https://github.com/pacocoursey/next-themes) | Dark mode support |
-| [react-icons](https://react-icons.github.io/react-icons/) | Icon library |
-| [Finnhub API](https://finnhub.io) | Market data (quotes, candles, news, earnings, recommendations) |
-| [TradingView Widget](https://www.tradingview.com/widget/) | Interactive charting |
+| ⚡ [Next.js 14](https://nextjs.org) | React framework with App Router |
+| 🔷 [TypeScript](https://typescriptlang.org) | Type safety |
+| 🎨 [Tailwind CSS](https://tailwindcss.com) | Utility-first styling |
+| 🌙 [next-themes](https://github.com/pacocoursey/next-themes) | Dark mode support |
+| 🎭 [react-icons](https://react-icons.github.io/react-icons/) | Icon library |
+| 📡 [Finnhub API](https://finnhub.io) | Market data provider |
+| 📈 [TradingView Widget](https://www.tradingview.com/widget/) | Interactive charting |
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 stockify/
-├── app/
-│   ├── layout.tsx          # Root layout with theme provider
-│   └── page.tsx            # Main dashboard (all components)
-├── public/
+├── 📂 app/
+│   ├── layout.tsx          # Root layout + theme provider
+│   └── page.tsx            # Main dashboard
+├── 📂 public/
 │   └── favicon.svg         # App icon
-├── styles/
-│   └── globals.css         # Tailwind imports + custom animations
+├── 📂 styles/
+│   └── globals.css         # Tailwind + custom animations
 ├── .env.example            # API key template
-├── next.config.js          # Next.js configuration
-├── tailwind.config.ts      # Tailwind configuration
-├── tsconfig.json           # TypeScript configuration
-└── package.json            # Dependencies and scripts
+├── next.config.js          # Next.js config
+├── tailwind.config.ts      # Tailwind config
+├── tsconfig.json           # TypeScript config
+└── package.json            # Dependencies
 ```
 
 ---
 
-## Scripts
+## 📜 Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start development server |
-| `npm run build` | Build for production |
-| `npm start` | Start production server |
-| `npm run lint` | Run ESLint |
+| `npm run dev` | 🚀 Start development server |
+| `npm run build` | 📦 Build for production |
+| `npm start` | ▶️ Start production server |
+| `npm run lint` | 🔍 Run ESLint |
 
 ---
 
-## API Rate Limits
+## ⚠️ API Rate Limits
 
-Stockify uses the **Finnhub free tier**, which allows **60 API calls per minute**. The app is designed to work within these limits, but if you search very rapidly you may temporarily hit the cap. Paid Finnhub plans offer higher limits.
+Stockify uses the **Finnhub free tier** (60 calls/min). The app is designed to stay within limits, but rapid searching may temporarily hit the cap. [Paid plans](https://finnhub.io/pricing) offer higher limits.
 
 ---
 
-## License
+## 📄 License
 
 ISC
+
+---
+
+<p align="center">
+  Made with ❤️ by <b>Barel</b>
+</p>
