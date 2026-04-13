@@ -1190,7 +1190,7 @@ function HomeContent() {
           `/api/company?symbol=${encodeURIComponent(resolvedSymbol)}`
         ),
         safeFetchJson<CandleData>(
-          `/api/candles?symbol=${encodeURIComponent(resolvedSymbol)}&resolution=D&from=${from}&to=${now}&type=${assetType === "forex" ? "forex" : "stock"}`
+          `/api/candles?symbol=${encodeURIComponent(resolvedSymbol)}&resolution=D&from=${from}&to=${now}&type=${assetType}`
         ),
         assetType === "stock"
           ? safeFetchJson<RecommendationTrend[]>(
@@ -1533,7 +1533,7 @@ function HomeContent() {
           </div>
         )}
 
-        <main className="min-h-screen flex items-center justify-center p-6 relative z-10">
+        <main className={`flex items-center justify-center p-6 relative z-10 ${stockData ? "" : "min-h-screen"}`}>
           <div className="max-w-3xl w-full">
             <div className="text-center space-y-4 mb-12">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase backdrop-blur-sm">

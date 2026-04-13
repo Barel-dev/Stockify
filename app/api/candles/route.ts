@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   if (!from) return NextResponse.json({ error: "Missing from" }, { status: 400 });
   if (!to) return NextResponse.json({ error: "Missing to" }, { status: 400 });
 
-  const endpoint = type === "forex" ? "/forex/candles" : "/stock/candle";
+  const endpoint = type === "forex" ? "/forex/candle" : type === "crypto" ? "/crypto/candle" : "/stock/candle";
   const data = await finnhubFetch(endpoint, { symbol, resolution, from, to });
   if (!data) return NextResponse.json({ error: "Failed to fetch" }, { status: 502 });
   return NextResponse.json(data);

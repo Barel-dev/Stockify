@@ -79,10 +79,11 @@ export default function StockChart({ symbol }: { symbol: string }) {
       const config = RANGE_CONFIG[range];
       const to = Math.floor(Date.now() / 1000);
       const from = to - config.days * 86400;
+      const assetType = symbol.includes(":") ? (symbol.toUpperCase().includes("OANDA") ? "forex" : "crypto") : "stock";
 
       try {
         const res = await fetch(
-          `/api/candles?symbol=${encodeURIComponent(symbol)}&resolution=${config.resolution}&from=${from}&to=${to}`
+          `/api/candles?symbol=${encodeURIComponent(symbol)}&resolution=${config.resolution}&from=${from}&to=${to}&type=${assetType}`
         );
         if (!res.ok) throw new Error("Failed");
         const data: CandleData = await res.json();
