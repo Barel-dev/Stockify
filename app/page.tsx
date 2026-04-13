@@ -46,6 +46,7 @@ import { useUser } from "@clerk/nextjs";
 import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
+import StockChart from "@/components/StockChart";
 
 // API calls go through server-side routes in /api/*
 
@@ -2000,6 +2001,14 @@ function HomeContent() {
                     }
                   >
                     <TradingViewChart symbol={ticker} />
+                  </SectionCard>
+
+                  <SectionCard
+                    title="Price Chart"
+                    subtitle="Candlestick and line chart with volume overlay."
+                    icon={<FiTrendingUp className="text-emerald-500" />}
+                  >
+                    <StockChart symbol={ticker} />
                   </SectionCard>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">

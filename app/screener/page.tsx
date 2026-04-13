@@ -155,7 +155,34 @@ export default function ScreenerPage() {
             <FiFilter className="text-blue-400 text-2xl" />
             <h1 className="text-4xl md:text-5xl font-black tracking-tight">Screener</h1>
           </div>
-          <p className="text-gray-400 text-sm mb-8">Scan and filter the top 50 S&P 500 stocks in real time.</p>
+          <p className="text-gray-400 text-sm mb-6">Scan and filter the top 50 S&P 500 stocks in real time.</p>
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {[
+              { label: "High Dividend", minP: "", maxP: "", sec: "All", cap: "All", sort: "divYield" as SortKey, filter: (r: ScreenerResult) => (r.metrics?.metric?.dividendYieldIndicatedAnnual ?? 0) > 2 },
+              { label: "Tech Giants", minP: "", maxP: "", sec: "Technology", cap: "Large", sort: "marketCap" as SortKey },
+              { label: "Value Picks", minP: "", maxP: "100", sec: "All", cap: "All", sort: "pe" as SortKey },
+              { label: "Low Beta", minP: "", maxP: "", sec: "All", cap: "All", sort: "beta" as SortKey },
+              { label: "Large Cap", minP: "", maxP: "", sec: "All", cap: "Large", sort: "marketCap" as SortKey },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                onClick={() => {
+                  setMinPrice(preset.minP);
+                  setMaxPrice(preset.maxP);
+                  setSector(preset.sec);
+                  setMinMktCap(preset.cap);
+                  setSortKey(preset.sort);
+                  setSortAsc(preset.sort === "pe" || preset.sort === "beta");
+                  if (results.length === 0) scan();
+                }}
+                className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:border-blue-500/30 hover:text-blue-300 hover:bg-blue-500/5 transition-all"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
 
           {/* Filters */}
           <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-5 sm:p-6 shadow-2xl mb-8">

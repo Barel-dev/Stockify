@@ -80,3 +80,14 @@ html {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Select dropdown dark styling */
+select option {
+  background: #111;
+  color: #fff;
+}

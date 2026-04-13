@@ -3,6 +3,8 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import "styles/globals.css";
 import { ServiceWorkerRegistrar } from "./sw-registrar";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "Stockify",
@@ -45,8 +47,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             rel="stylesheet"
           />
         </head>
-        <body className="bg-black min-h-screen">
-            {children}
+        <body className="bg-black min-h-screen pb-16 lg:pb-0">
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
+            <KeyboardShortcuts />
             <ServiceWorkerRegistrar />
         </body>
       </html>

@@ -45,69 +45,74 @@ export default function Navbar() {
   const { isSignedIn } = useUser();
 
   return (
-    <div className="fixed top-5 left-4 right-4 sm:left-6 sm:right-6 z-50 flex items-center justify-between gap-3">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-2.5 shrink-0">
-        <LogoSVG />
-        <span className="text-lg font-bold tracking-tight text-white hidden sm:inline">Stockify</span>
-      </Link>
+    <>
+      {/* Top bar — desktop & mobile */}
+      <div className="fixed top-5 left-4 right-4 sm:left-6 sm:right-6 z-50 flex items-center justify-between gap-3">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2.5 shrink-0">
+          <LogoSVG />
+          <span className="text-lg font-bold tracking-tight text-white hidden sm:inline">Stockify</span>
+        </Link>
 
-      {/* Desktop nav pill */}
-      <nav className="hidden lg:flex items-center rounded-full border border-white/10 bg-black/50 backdrop-blur-2xl p-1 gap-0.5 shadow-2xl">
-        {NAV_LINKS.map((link) => {
-          const active = pathname === link.href;
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
-                active
-                  ? "bg-white/10 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
-              }`}
-            >
-              <Icon size={13} />
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
+        {/* Desktop nav pill */}
+        <nav className="hidden lg:flex items-center rounded-full border border-white/10 bg-black/50 backdrop-blur-2xl p-1 gap-0.5 shadow-2xl">
+          {NAV_LINKS.map((link) => {
+            const active = pathname === link.href;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-bold tracking-wide transition-all ${
+                  active
+                    ? "bg-white/10 text-white"
+                    : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <Icon size={13} />
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Mobile nav pill — icon only */}
-      <nav className="flex lg:hidden items-center rounded-full border border-white/10 bg-black/50 backdrop-blur-2xl p-1 gap-0.5 shadow-2xl">
-        {NAV_LINKS.map((link) => {
-          const active = pathname === link.href;
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`rounded-full p-2 transition-all ${
-                active
-                  ? "bg-white/10 text-white"
-                  : "text-gray-400 hover:text-white hover:bg-white/[0.06]"
-              }`}
-              title={link.label}
-            >
-              <Icon size={15} />
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Auth */}
-      <div className="shrink-0">
-        {isSignedIn ? (
-          <UserButton />
-        ) : (
-          <SignInButton mode="modal">
-            <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
-              Sign In
-            </button>
-          </SignInButton>
-        )}
+        {/* Auth */}
+        <div className="shrink-0">
+          {isSignedIn ? (
+            <UserButton />
+          ) : (
+            <SignInButton mode="modal">
+              <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
+                Sign In
+              </button>
+            </SignInButton>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Mobile bottom nav */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t border-white/10 bg-black/80 backdrop-blur-2xl safe-area-bottom">
+        <div className="flex items-center justify-around px-2 py-2">
+          {NAV_LINKS.map((link) => {
+            const active = pathname === link.href;
+            const Icon = link.icon;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${
+                  active
+                    ? "text-blue-400"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                <Icon size={18} />
+                <span className="text-[9px] font-bold tracking-wide">{link.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </>
   );
 }
