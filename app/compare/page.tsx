@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, type FormEvent, type Keyboard
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
+import { createChart, ColorType, CrosshairMode, LineSeries } from "lightweight-charts";
 import {
   FiSearch,
   FiArrowUp,
@@ -719,6 +720,162 @@ function ComparisonChart({ symbolA, symbolB }: { symbolA: string; symbolB: strin
   );
 }
 
+// ── Historical Performance Comparison ────────────────────────────────────────
+
+function PerformanceCompare({ symbolA, symbolB }: { symbolA: string; symbolB: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const [range, setRange] = useState<"1M" | "3M" | "6M" | "1Y">("3M");
+  const [loading, setLoading] = useState(true);
+
+  const rangeDays: Record<string, number> = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 };
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    if (chartRef.current) {
+      chartRef.current.remove();
+      chartRef.current = null;
+    }
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "#6b7280",
+        fontSize: 11,
+        fontFamily: "Inter Tight, system-ui, sans-serif",
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.03)" },
+        horzLines: { color: "rgba(255,255,255,0.03)" },
+      },
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.05)",
+      },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.05)",
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: "rgba(59,130,246,0.3)", width: 1, style: 2, labelBackgroundColor: "#1e3a5f" },
+        horzLine: { color: "rgba(59,130,246,0.3)", width: 1, style: 2, labelBackgroundColor: "#1e3a5f" },
+      },
+      handleScroll: { vertTouchDrag: false },
+      width: containerRef.current.clientWidth,
+      height: 320,
+    });
+    chartRef.current = chart;
+
+    const fetchBoth = async () => {
+      setLoading(true);
+      const days = rangeDays[range];
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - days * 86400;
+      const resolution = days <= 30 ? "60" : "D";
+
+      try {
+        const [resA, resB] = await Promise.all([
+          fetch(`/api/candles?symbol=${encodeURIComponent(symbolA)}&resolution=${resolution}&from=${from}&to=${to}`).then((r) => r.json()),
+          fetch(`/api/candles?symbol=${encodeURIComponent(symbolB)}&resolution=${resolution}&from=${from}&to=${to}`).then((r) => r.json()),
+        ]);
+
+        if (resA.s === "ok" && resA.c?.length > 0) {
+          const baseA = resA.c[0];
+          const seriesA = chart.addSeries(LineSeries, {
+            color: "#3b82f6",
+            lineWidth: 2,
+            title: cleanSymbol(symbolA),
+          });
+          seriesA.setData(
+            resA.t.map((t: number, i: number) => ({
+              time: t,
+              value: ((resA.c[i] - baseA) / baseA) * 100,
+            }))
+          );
+        }
+
+        if (resB.s === "ok" && resB.c?.length > 0) {
+          const baseB = resB.c[0];
+          const seriesB = chart.addSeries(LineSeries, {
+            color: "#a855f7",
+            lineWidth: 2,
+            title: cleanSymbol(symbolB),
+          });
+          seriesB.setData(
+            resB.t.map((t: number, i: number) => ({
+              time: t,
+              value: ((resB.c[i] - baseB) / baseB) * 100,
+            }))
+          );
+        }
+
+        chart.timeScale().fitContent();
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBoth();
+
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+      }
+    };
+  }, [symbolA, symbolB, range]);
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-5 shadow-2xl">
+      <div className="flex items-center justify-between mb-4">
+        <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.28em] text-gray-500 font-bold">
+          <FiActivity size={12} />
+          Normalized % Performance
+        </p>
+        <div className="flex items-center gap-1">
+          {(["1M", "3M", "6M", "1Y"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                range === r ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-4 mb-3">
+        <span className="flex items-center gap-1.5 text-xs font-bold text-blue-400">
+          <span className="w-3 h-0.5 bg-blue-500 rounded" /> {cleanSymbol(symbolA)}
+        </span>
+        <span className="flex items-center gap-1.5 text-xs font-bold text-purple-400">
+          <span className="w-3 h-0.5 bg-purple-500 rounded" /> {cleanSymbol(symbolB)}
+        </span>
+      </div>
+      <div className="relative">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+          </div>
+        )}
+        <div ref={containerRef} className={loading ? "opacity-30" : ""} />
+      </div>
+    </div>
+  );
+}
+
 // ── Autocomplete Hook ────────────────────────────────────────────────────────
 
 function useTickerAutocomplete() {
@@ -1032,6 +1189,9 @@ export default function ComparePage() {
 
               {/* Comparison chart */}
               <ComparisonChart symbolA={results[0].symbol} symbolB={results[1].symbol} />
+
+              {/* Historical % performance */}
+              <PerformanceCompare symbolA={results[0].symbol} symbolB={results[1].symbol} />
 
               {/* Quick actions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

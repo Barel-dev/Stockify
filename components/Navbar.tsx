@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
@@ -10,7 +11,10 @@ import {
   FiBriefcase,
   FiFilter,
   FiGrid,
+  FiCalendar,
+  FiDollarSign,
 } from "react-icons/fi";
+import { CURRENCIES, getSavedCurrency, saveCurrency, type Currency } from "@/lib/currency";
 
 const NAV_LINKS = [
   { href: "/", label: "Search", icon: FiSearch },
@@ -19,6 +23,7 @@ const NAV_LINKS = [
   { href: "/portfolio", label: "Portfolio", icon: FiBriefcase },
   { href: "/screener", label: "Screener", icon: FiFilter },
   { href: "/heatmap", label: "Heatmap", icon: FiGrid },
+  { href: "/earnings", label: "Earnings", icon: FiCalendar },
 ];
 
 function LogoSVG() {
@@ -43,6 +48,20 @@ function LogoSVG() {
 export default function Navbar() {
   const pathname = usePathname();
   const { isSignedIn } = useUser();
+  const [currency, setCurrency] = useState<Currency>("USD");
+  const [showCurrencyMenu, setShowCurrencyMenu] = useState(false);
+
+  useEffect(() => {
+    setCurrency(getSavedCurrency());
+  }, []);
+
+  const handleCurrencyChange = (c: Currency) => {
+    setCurrency(c);
+    saveCurrency(c);
+    setShowCurrencyMenu(false);
+    // Dispatch event so other components can react
+    window.dispatchEvent(new CustomEvent("currency-change", { detail: c }));
+  };
 
   return (
     <>
@@ -76,8 +95,37 @@ export default function Navbar() {
           })}
         </nav>
 
-        {/* Auth */}
-        <div className="shrink-0">
+        {/* Auth + Currency */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Currency selector */}
+          <div className="relative hidden sm:block">
+            <button
+              onClick={() => setShowCurrencyMenu((v) => !v)}
+              className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-3 py-2 text-[10px] font-bold tracking-wider uppercase text-gray-400 hover:text-white hover:border-white/20 transition-all"
+            >
+              {CURRENCIES.find((c) => c.code === currency)?.symbol} {currency}
+            </button>
+            {showCurrencyMenu && (
+              <div className="absolute top-full right-0 mt-2 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50 min-w-[140px]">
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c.code}
+                    onClick={() => handleCurrencyChange(c.code)}
+                    className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors border-b border-white/5 last:border-0 ${
+                      currency === c.code
+                        ? "bg-blue-500/10 text-blue-400"
+                        : "text-gray-400 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <span className="text-sm">{c.symbol}</span>
+                    <span>{c.code}</span>
+                    <span className="text-gray-600 ml-auto text-[10px]">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {isSignedIn ? (
             <UserButton />
           ) : (

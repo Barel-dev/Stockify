@@ -294,16 +294,96 @@ export default function PortfolioPage() {
             </div>
           )}
 
+          {/* Performance Charts */}
+          {!loading && withPrice.length > 0 && (() => {
+            const holdingPLs = withPrice.map((h) => {
+              const pl = ((h.quote?.c ?? 0) - h.buy_price) / h.buy_price * 100;
+              const value = (h.quote?.c ?? 0) * h.shares;
+              return { symbol: h.symbol, pl, value };
+            }).sort((a, b) => b.pl - a.pl);
+
+            const maxAbsPL = Math.max(...holdingPLs.map((h) => Math.abs(h.pl)), 1);
+
+            // Allocation
+            const totalVal = holdingPLs.reduce((s, h) => s + h.value, 0);
+            const allocations = holdingPLs
+              .map((h) => ({ symbol: h.symbol, pct: totalVal > 0 ? (h.value / totalVal) * 100 : 0 }))
+              .sort((a, b) => b.pct - a.pct);
+
+            const ALLOC_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899", "#84cc16"];
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+                {/* P&L by Holding */}
+                <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-4 flex items-center gap-1.5">
+                    <FiTrendingUp size={12} /> P&L by Holding
+                  </p>
+                  <div className="space-y-3">
+                    {holdingPLs.map((h) => (
+                      <div key={h.symbol} className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-white w-16 shrink-0">{h.symbol}</span>
+                        <div className="flex-1 h-6 bg-white/5 rounded-lg overflow-hidden relative">
+                          <div
+                            className={`h-full rounded-lg transition-all ${h.pl >= 0 ? "bg-emerald-500/40" : "bg-rose-500/40"}`}
+                            style={{ width: `${Math.min(Math.abs(h.pl) / maxAbsPL * 100, 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs font-black w-16 text-right shrink-0 ${h.pl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {h.pl >= 0 ? "+" : ""}{h.pl.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Portfolio Allocation */}
+                <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-4 flex items-center gap-1.5">
+                    <FiPieChart size={12} /> Allocation
+                  </p>
+                  {/* Stacked bar */}
+                  <div className="h-8 rounded-full overflow-hidden flex mb-4">
+                    {allocations.map((a, i) => (
+                      <div
+                        key={a.symbol}
+                        className="h-full transition-all hover:opacity-80"
+                        style={{
+                          width: `${a.pct}%`,
+                          backgroundColor: ALLOC_COLORS[i % ALLOC_COLORS.length],
+                          minWidth: a.pct > 0 ? "4px" : "0",
+                        }}
+                        title={`${a.symbol}: ${a.pct.toFixed(1)}%`}
+                      />
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {allocations.map((a, i) => (
+                      <div key={a.symbol} className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: ALLOC_COLORS[i % ALLOC_COLORS.length] }}
+                        />
+                        <span className="text-xs font-bold text-white">{a.symbol}</span>
+                        <span className="text-[10px] text-gray-500 ml-auto">{a.pct.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Loading state */}
           {loading ? (
-            <div className="grid grid-cols-1 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
+            <div className="space-y-3">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl p-5">
                   <div className="flex items-center gap-4">
-                    <div className="h-5 w-20 bg-white/10 rounded" />
-                    <div className="h-4 w-32 bg-white/5 rounded" />
+                    <div className="relative overflow-hidden rounded h-5 w-20 bg-white/[0.06]"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
+                    <div className="relative overflow-hidden rounded h-4 w-32 bg-white/[0.06]"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
                     <div className="flex-1" />
-                    <div className="h-8 w-28 bg-white/10 rounded" />
+                    <div className="relative overflow-hidden rounded h-6 w-24 bg-white/[0.06]"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
                   </div>
                 </div>
               ))}

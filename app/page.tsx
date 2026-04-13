@@ -40,6 +40,7 @@ import {
   FiFileText,
   FiGrid,
   FiFilter,
+  FiDollarSign,
 } from "react-icons/fi";
 import Image from "next/image";
 import { useUser } from "@clerk/nextjs";
@@ -119,6 +120,10 @@ type BasicFinancialsData = {
     peBasicExclExtraTTM?: number;
     epsBasicExclExtraItemsTTM?: number;
     dividendYieldIndicatedAnnual?: number;
+    dividendPerShareAnnual?: number;
+    dividendPayoutRatioTTM?: number;
+    dividendGrowthRate5Y?: number;
+    payoutRatioAnnual?: number;
     currentRatioQuarterly?: number;
     totalDebtToEquityQuarterly?: number;
   };
@@ -1706,14 +1711,24 @@ function HomeContent() {
                         )}
                         <button
                           onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/?ticker=${encodeURIComponent(ticker)}`);
+                            const name = companyData?.name || ticker;
+                            const price = stockData.c > 0 ? `$${stockData.c.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
+                            const change = stockData.dp !== 0 ? ` (${stockData.dp >= 0 ? "+" : ""}${stockData.dp.toFixed(2)}%)` : "";
+                            const url = `${window.location.origin}/?ticker=${encodeURIComponent(ticker)}`;
+                            const shareText = `${name} (${ticker}) ${price}${change}\n${url}`;
+
+                            if (navigator.share) {
+                              navigator.share({ title: `${ticker} on Stockify`, text: shareText, url }).catch(() => {});
+                            } else {
+                              navigator.clipboard.writeText(shareText);
+                            }
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
                           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:border-blue-500/30 hover:text-white transition-all"
                         >
                           {copied ? <FiCheck className="text-emerald-400" /> : <FiShare2 />}
-                          {copied ? "Copied!" : "Share"}
+                          {copied ? "Shared!" : "Share"}
                         </button>
 
                         {isSignedIn && (
@@ -2283,6 +2298,93 @@ function HomeContent() {
                       </SectionCard>
                     </div>
                   )}
+
+                  {/* AI-Powered Smart Summary */}
+                  <SectionCard
+                    title="Smart Summary"
+                    subtitle="AI-generated analysis based on all available data points."
+                    icon={<FiCpu className="text-blue-400" />}
+                  >
+                    <div className="space-y-3">
+                      {(() => {
+                        const insights: { text: string; tone: "green" | "rose" | "blue" | "amber" }[] = [];
+
+                        // Overall signal
+                        const overallScore = Math.round((analysis.meters.trend + analysis.meters.momentum + analysis.meters.sentiment + analysis.meters.stability) / 4);
+                        if (overallScore >= 65) insights.push({ text: `Overall signal is bullish at ${overallScore}/100, suggesting positive momentum across trend, sentiment, and technical indicators.`, tone: "green" });
+                        else if (overallScore <= 35) insights.push({ text: `Overall signal is bearish at ${overallScore}/100, indicating weakness across multiple analysis dimensions.`, tone: "rose" });
+                        else insights.push({ text: `Overall signal is neutral at ${overallScore}/100, with mixed signals across indicators.`, tone: "blue" });
+
+                        // Price vs moving averages
+                        if (isNumber(analysis.ema20) && isNumber(analysis.sma50)) {
+                          if (stockData.c > (analysis.ema20 ?? 0) && (analysis.ema20 ?? 0) > (analysis.sma50 ?? 0)) {
+                            insights.push({ text: "Price is trading above both the 20-day and 50-day averages with a bullish alignment — a positive trend structure.", tone: "green" });
+                          } else if (stockData.c < (analysis.ema20 ?? 0) && (analysis.ema20 ?? 0) < (analysis.sma50 ?? 0)) {
+                            insights.push({ text: "Price is below both the 20-day and 50-day averages — the trend structure is bearish.", tone: "rose" });
+                          }
+                        }
+
+                        // RSI
+                        if (isNumber(analysis.rsi14)) {
+                          if (analysis.rsi14! > 70) insights.push({ text: `RSI at ${analysis.rsi14!.toFixed(1)} is in overbought territory. A pullback or consolidation phase is possible.`, tone: "amber" });
+                          else if (analysis.rsi14! < 30) insights.push({ text: `RSI at ${analysis.rsi14!.toFixed(1)} signals oversold conditions. A bounce could be forming.`, tone: "green" });
+                        }
+
+                        // Analyst consensus
+                        if (isNumber(analysis.bullishPct) && analysis.totalRec > 5) {
+                          if (analysis.bullishPct! >= 70) insights.push({ text: `${analysis.bullishPct!.toFixed(0)}% of ${analysis.totalRec} analysts rate this a Buy or Strong Buy — strong institutional confidence.`, tone: "green" });
+                          else if (analysis.bullishPct! <= 30) insights.push({ text: `Only ${analysis.bullishPct!.toFixed(0)}% of analysts are bullish — Wall Street sentiment is cautious.`, tone: "rose" });
+                        }
+
+                        // Price target upside
+                        if (isNumber(analysis.priceTargetUpside)) {
+                          const upside = analysis.priceTargetUpside!;
+                          if (upside > 15) insights.push({ text: `Analyst mean price target implies ${upside.toFixed(1)}% upside — significant potential according to Street estimates.`, tone: "green" });
+                          else if (upside < -10) insights.push({ text: `Analyst mean target suggests ${Math.abs(upside).toFixed(1)}% downside risk from current levels.`, tone: "rose" });
+                        }
+
+                        // Earnings surprise
+                        if (isNumber(analysis.latestEarningsSurprise)) {
+                          const surprise = analysis.latestEarningsSurprise!;
+                          if (surprise > 5) insights.push({ text: `Last earnings beat estimates by ${surprise.toFixed(1)}% — execution is strong.`, tone: "green" });
+                          else if (surprise < -5) insights.push({ text: `Last earnings missed estimates by ${Math.abs(surprise).toFixed(1)}% — a concern for fundamentals.`, tone: "rose" });
+                        }
+
+                        // Volatility
+                        if (isNumber(analysis.volatility30d)) {
+                          if (analysis.volatility30d! > 3) insights.push({ text: `30-day volatility is elevated at ${analysis.volatility30d!.toFixed(1)}%. Expect wider price swings and consider position sizing accordingly.`, tone: "amber" });
+                        }
+
+                        // Volume
+                        if (isNumber(analysis.volumeRatio)) {
+                          if (analysis.volumeRatio! > 2) insights.push({ text: `Volume is ${analysis.volumeRatio!.toFixed(1)}x above the 20-day average — unusual activity that often precedes a significant move.`, tone: "blue" });
+                        }
+
+                        // 52-week position
+                        if (isNumber(analysis.week52Pos)) {
+                          if (analysis.week52Pos! > 90) insights.push({ text: "Trading near the 52-week high. Momentum is strong but be aware of potential resistance at this level.", tone: "amber" });
+                          else if (analysis.week52Pos! < 15) insights.push({ text: "Price is near the 52-week low. Could be a value opportunity or a signal of continued weakness.", tone: "blue" });
+                        }
+
+                        if (insights.length === 0) {
+                          insights.push({ text: "Not enough data points to generate a comprehensive summary. Try a major US stock like AAPL or MSFT for full analysis.", tone: "blue" });
+                        }
+
+                        const toneColors = {
+                          green: "border-emerald-500/20 bg-emerald-500/5 text-emerald-300",
+                          rose: "border-rose-500/20 bg-rose-500/5 text-rose-300",
+                          blue: "border-blue-500/20 bg-blue-500/5 text-blue-300",
+                          amber: "border-amber-500/20 bg-amber-500/5 text-amber-300",
+                        };
+
+                        return insights.map((insight, i) => (
+                          <div key={i} className={`rounded-2xl border p-4 text-sm leading-relaxed ${toneColors[insight.tone]}`}>
+                            {insight.text}
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </SectionCard>
                 </>
               )}
 
@@ -2603,6 +2705,41 @@ function HomeContent() {
                         )}
                       </SectionCard>
                     </div>
+
+                    {/* Dividend & Income */}
+                    {(basicFinancials?.metric?.dividendYieldIndicatedAnnual ?? 0) > 0 && (
+                      <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl">
+                        <div className="flex items-center gap-2 mb-4">
+                          <FiDollarSign className="text-emerald-400" />
+                          <h3 className="text-sm font-black uppercase tracking-wider text-white">Dividend & Income</h3>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                          <MetricCard
+                            label="Dividend Yield"
+                            value={formatPercent(basicFinancials?.metric?.dividendYieldIndicatedAnnual ?? null)}
+                            hint="Indicated annual yield"
+                            accent="green"
+                          />
+                          <MetricCard
+                            label="Dividend / Share"
+                            value={isNumber(basicFinancials?.metric?.dividendPerShareAnnual) ? `$${(basicFinancials!.metric!.dividendPerShareAnnual!).toFixed(2)}` : "N/A"}
+                            hint="Annual dividend per share"
+                          />
+                          <MetricCard
+                            label="Payout Ratio"
+                            value={formatPercent(basicFinancials?.metric?.dividendPayoutRatioTTM ?? basicFinancials?.metric?.payoutRatioAnnual ?? null)}
+                            hint="% of earnings paid as dividends"
+                            accent="amber"
+                          />
+                          <MetricCard
+                            label="5Y Div Growth"
+                            value={formatPercent(basicFinancials?.metric?.dividendGrowthRate5Y ?? null)}
+                            hint="5-year dividend growth rate"
+                            accent="blue"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                       <SectionCard

@@ -5,6 +5,9 @@ import "styles/globals.css";
 import { ServiceWorkerRegistrar } from "./sw-registrar";
 import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import OnboardingTour from "@/components/OnboardingTour";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Stockify",
@@ -52,6 +55,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </ErrorBoundary>
             <KeyboardShortcuts />
+            <OnboardingTour />
+            <Analytics />
+            <SpeedInsights />
             <ServiceWorkerRegistrar />
         </body>
       </html>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
-import { FiStar, FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiTrendingUp, FiTrendingDown, FiBarChart2 } from "react-icons/fi";
+import { FiStar, FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiTrendingUp, FiTrendingDown, FiBarChart2, FiMove } from "react-icons/fi";
 import Link from "next/link";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useLivePrices } from "@/lib/use-live-prices";
 import Navbar from "@/components/Navbar";
 
@@ -79,6 +80,20 @@ export default function WatchlistPage() {
     }
   };
 
+  const onDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination) return;
+    const from = result.source.index;
+    const to = result.destination.index;
+    if (from === to) return;
+
+    setItems((prev) => {
+      const updated = [...prev];
+      const [moved] = updated.splice(from, 1);
+      updated.splice(to, 0, moved);
+      return updated;
+    });
+  }, []);
+
   return (
     <div className="bg-[#050505] text-white font-sans min-h-screen">
       <div className="fixed inset-0 z-0 pointer-events-none">
@@ -144,10 +159,10 @@ export default function WatchlistPage() {
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="rounded-3xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
-                  <div className="h-5 w-24 bg-white/10 rounded mb-3" />
-                  <div className="h-4 w-40 bg-white/5 rounded mb-4" />
-                  <div className="h-8 w-28 bg-white/10 rounded" />
+                <div key={i} className="rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl p-6">
+                  <div className="relative overflow-hidden rounded h-5 w-24 bg-white/[0.06] mb-3"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
+                  <div className="relative overflow-hidden rounded h-3 w-40 bg-white/[0.06] mb-4"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
+                  <div className="relative overflow-hidden rounded h-8 w-28 bg-white/[0.06]"><div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" /></div>
                 </div>
               ))}
             </div>
@@ -164,57 +179,86 @@ export default function WatchlistPage() {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((item) => {
-                const livePrice = livePrices.get(item.symbol);
-                const price = livePrice?.price ?? item.quote?.c ?? 0;
-                const change = item.quote?.dp ?? 0;
-                const isPositive = change >= 0;
-
-                return (
+            <DragDropContext onDragEnd={onDragEnd}>
+              <Droppable droppableId="watchlist" direction="horizontal">
+                {(provided) => (
                   <div
-                    key={item.id}
-                    className="group rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl transition-all hover:border-blue-500/30 hover:bg-black/70"
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <Link href={`/?ticker=${encodeURIComponent(item.symbol)}`} className="min-w-0">
-                        <p className="text-lg font-black tracking-tight text-white group-hover:text-blue-300 transition-colors">
-                          {item.symbol}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate mt-1">
-                          {item.company_name || item.symbol}
-                        </p>
-                      </Link>
-                      <button
-                        onClick={() => handleRemove(item.symbol)}
-                        className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                        title="Remove from watchlist"
-                      >
-                        <FiTrash2 className="text-sm" />
-                      </button>
-                    </div>
+                    {items.map((item, index) => {
+                      const livePrice = livePrices.get(item.symbol);
+                      const price = livePrice?.price ?? item.quote?.c ?? 0;
+                      const change = item.quote?.dp ?? 0;
+                      const isPositive = change >= 0;
 
-                    {price > 0 ? (
-                      <div>
-                        <p className="text-2xl font-black text-white">
-                          ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                        <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
-                          isPositive
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-rose-500/10 text-rose-400"
-                        }`}>
-                          {isPositive ? <FiArrowUp /> : <FiArrowDown />}
-                          {isPositive ? "+" : ""}{change.toFixed(2)}%
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">Price unavailable</p>
-                    )}
+                      return (
+                        <Draggable key={item.id} draggableId={item.id} index={index}>
+                          {(dragProvided, snapshot) => (
+                            <div
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                              className={`group rounded-3xl border bg-black/60 backdrop-blur-xl p-6 shadow-2xl transition-all ${
+                                snapshot.isDragging
+                                  ? "border-blue-500/50 bg-black/80 shadow-blue-500/10 scale-[1.02] rotate-1"
+                                  : "border-white/10 hover:border-blue-500/30 hover:bg-black/70"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <Link href={`/?ticker=${encodeURIComponent(item.symbol)}`} className="min-w-0">
+                                  <p className="text-lg font-black tracking-tight text-white group-hover:text-blue-300 transition-colors">
+                                    {item.symbol}
+                                  </p>
+                                  <p className="text-xs text-gray-500 truncate mt-1">
+                                    {item.company_name || item.symbol}
+                                  </p>
+                                </Link>
+                                <div className="flex items-center gap-1">
+                                  <div
+                                    {...dragProvided.dragHandleProps}
+                                    className="rounded-full p-2 text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-all cursor-grab active:cursor-grabbing"
+                                    title="Drag to reorder"
+                                  >
+                                    <FiMove className="text-sm" />
+                                  </div>
+                                  <button
+                                    onClick={() => handleRemove(item.symbol)}
+                                    className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                                    title="Remove from watchlist"
+                                  >
+                                    <FiTrash2 className="text-sm" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {price > 0 ? (
+                                <div>
+                                  <p className="text-2xl font-black text-white">
+                                    ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                  <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                    isPositive
+                                      ? "bg-emerald-500/10 text-emerald-400"
+                                      : "bg-rose-500/10 text-rose-400"
+                                  }`}>
+                                    {isPositive ? <FiArrowUp /> : <FiArrowDown />}
+                                    {isPositive ? "+" : ""}{change.toFixed(2)}%
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500">Price unavailable</p>
+                              )}
+                            </div>
+                          )}
+                        </Draggable>
+                      );
+                    })}
+                    {provided.placeholder}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
         </div>
       </div>

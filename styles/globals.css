@@ -86,6 +86,11 @@ html {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Shimmer loading skeleton */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
 /* Select dropdown dark styling */
 select option {
   background: #111;
