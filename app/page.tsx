@@ -1567,7 +1567,7 @@ function HomeContent() {
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search ticker (e.g. AAPL, BTC, ETH, EUR_USD)  —  Press / to focus"
+                  placeholder="Search any stock, crypto, or forex..."
                   value={ticker}
                   onChange={handleInputChange}
                   onFocus={() => ticker.length >= 1 && suggestions.length > 0 && setShowSuggestions(true)}
