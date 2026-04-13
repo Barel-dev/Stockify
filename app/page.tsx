@@ -47,7 +47,7 @@ import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
-import StockChart from "@/components/StockChart";
+import { useCurrency } from "@/lib/use-currency";
 
 // API calls go through server-side routes in /api/*
 
@@ -271,15 +271,17 @@ const getPriceDigits = (value: number, assetType: AssetType) => {
   return 2;
 };
 
-const formatPrice = (value?: number | null, assetType: AssetType = "stock") => {
+const formatPriceRaw = (value?: number | null, assetType: AssetType = "stock", sym = "$", conv?: (n: number) => number) => {
   if (!isNumber(value)) return "N/A";
-  return `$${value.toFixed(getPriceDigits(Math.abs(value), assetType))}`;
+  const v = conv ? conv(value) : value;
+  return `${sym}${v.toFixed(getPriceDigits(Math.abs(v), assetType))}`;
 };
 
-const formatSignedPrice = (value?: number | null, assetType: AssetType = "stock") => {
+const formatSignedPriceRaw = (value?: number | null, assetType: AssetType = "stock", sym = "$", conv?: (n: number) => number) => {
   if (!isNumber(value)) return "N/A";
-  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${sign}$${Math.abs(value).toFixed(getPriceDigits(Math.abs(value), assetType))}`;
+  const v = conv ? conv(value) : value;
+  const sign = v > 0 ? "+" : v < 0 ? "-" : "";
+  return `${sign}${sym}${Math.abs(v).toFixed(getPriceDigits(Math.abs(v), assetType))}`;
 };
 
 const formatPercent = (value?: number | null, digits = 2) =>
@@ -791,11 +793,13 @@ const getTradingViewSymbol = (symbol: string): string => {
 
 function TradingViewChart({ symbol }: { symbol: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [chartReady, setChartReady] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    setChartReady(false);
     const tvSymbol = getTradingViewSymbol(symbol);
 
     container.innerHTML = "";
@@ -833,16 +837,39 @@ function TradingViewChart({ symbol }: { symbol: string }) {
     container.appendChild(widgetDiv);
     container.appendChild(script);
 
+    // Mark ready after iframe loads
+    const timer = setTimeout(() => setChartReady(true), 1500);
+    const observer = new MutationObserver(() => {
+      const iframe = container.querySelector("iframe");
+      if (iframe) {
+        iframe.addEventListener("load", () => setChartReady(true), { once: true });
+        observer.disconnect();
+      }
+    });
+    observer.observe(container, { childList: true, subtree: true });
+
     return () => {
+      clearTimeout(timer);
+      observer.disconnect();
       container.innerHTML = "";
     };
   }, [symbol]);
 
   return (
-    <div
-      className="tradingview-widget-container tv-chart-wrapper overflow-hidden rounded-3xl border border-white/10"
-      ref={containerRef}
-    />
+    <div className="relative">
+      {!chartReady && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/80 rounded-3xl" style={{ minHeight: 820 }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+            <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Loading chart</p>
+          </div>
+        </div>
+      )}
+      <div
+        className={`tradingview-widget-container tv-chart-wrapper overflow-hidden rounded-3xl border border-white/10 transition-opacity duration-500 ${chartReady ? "opacity-100" : "opacity-0"}`}
+        ref={containerRef}
+      />
+    </div>
   );
 }
 
@@ -932,6 +959,19 @@ export default function Home() {
 function HomeContent() {
   const { isSignedIn } = useUser();
   const searchParams = useSearchParams();
+  const { symbol: cSym, convert: cConv } = useCurrency();
+
+  const formatPrice = useCallback(
+    (value?: number | null, assetType: AssetType = "stock") =>
+      formatPriceRaw(value, assetType, cSym, cConv),
+    [cSym, cConv]
+  );
+  const formatSignedPrice = useCallback(
+    (value?: number | null, assetType: AssetType = "stock") =>
+      formatSignedPriceRaw(value, assetType, cSym, cConv),
+    [cSym, cConv]
+  );
+
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
 
   const [ticker, setTicker] = useState("");
@@ -1515,22 +1555,24 @@ function HomeContent() {
           </div>
         )}
 
-        <main className={`flex items-center justify-center p-6 relative z-10 ${stockData ? "" : "min-h-screen"}`}>
+        <main className={`flex items-center justify-center p-6 relative z-10 ${stockData ? "pt-24 pb-4" : "min-h-screen"}`}>
           <div className="max-w-3xl w-full">
-            <div className="text-center space-y-4 mb-12">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase backdrop-blur-sm">
-                <FiTrendingUp /> Real-time Market Intelligence
+            {!stockData && (
+              <div className="text-center space-y-4 mb-12">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-wider uppercase backdrop-blur-sm">
+                  <FiTrendingUp /> Real-time Market Intelligence
+                </div>
+
+                <h1 className="text-6xl md:text-7xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent drop-shadow-2xl">
+                  STOCKIFY
+                </h1>
+
+                <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-8">
+                  Premium market analysis with structured technicals, fundamentals, company news,
+                  earnings context, and cleaner execution logic.
+                </p>
               </div>
-
-              <h1 className="text-6xl md:text-7xl font-black tracking-tighter bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent drop-shadow-2xl">
-                STOCKIFY
-              </h1>
-
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-8">
-                Premium market analysis with structured technicals, fundamentals, company news,
-                earnings context, and cleaner execution logic.
-              </p>
-            </div>
+            )}
 
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-500" />
@@ -1694,7 +1736,7 @@ function HomeContent() {
                         <button
                           onClick={() => {
                             const name = companyData?.name || ticker;
-                            const price = stockData.c > 0 ? `$${stockData.c.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
+                            const price = stockData.c > 0 ? `${cSym}${cConv(stockData.c).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "";
                             const change = stockData.dp !== 0 ? ` (${stockData.dp >= 0 ? "+" : ""}${stockData.dp.toFixed(2)}%)` : "";
                             const url = `${window.location.origin}/?ticker=${encodeURIComponent(ticker)}`;
                             const shareText = `${name} (${ticker}) ${price}${change}\n${url}`;
@@ -1741,15 +1783,15 @@ function HomeContent() {
                               high: stockData.h,
                               low: stockData.l,
                               prevClose: stockData.pc,
-                              marketCap: isNumber(companyData.marketCapitalization) ? formatCompactNumber(companyData.marketCapitalization * 1e6, "$") : undefined,
+                              marketCap: isNumber(companyData.marketCapitalization) ? formatCompactNumber(cConv(companyData.marketCapitalization * 1e6), cSym) : undefined,
                               exchange: companyData.exchange ?? undefined,
                               industry: companyData.finnhubIndustry ?? undefined,
                               pe: isNumber(basicFinancials?.metric?.peBasicExclExtraTTM) ? basicFinancials!.metric!.peBasicExclExtraTTM!.toFixed(2) : undefined,
-                              eps: isNumber(basicFinancials?.metric?.epsBasicExclExtraItemsTTM) ? `$${basicFinancials!.metric!.epsBasicExclExtraItemsTTM!.toFixed(2)}` : undefined,
-                              week52High: isNumber(basicFinancials?.metric?.["52WeekHigh"]) ? `$${basicFinancials!.metric!["52WeekHigh"]!.toFixed(2)}` : undefined,
-                              week52Low: isNumber(basicFinancials?.metric?.["52WeekLow"]) ? `$${basicFinancials!.metric!["52WeekLow"]!.toFixed(2)}` : undefined,
+                              eps: isNumber(basicFinancials?.metric?.epsBasicExclExtraItemsTTM) ? `${cSym}${cConv(basicFinancials!.metric!.epsBasicExclExtraItemsTTM!).toFixed(2)}` : undefined,
+                              week52High: isNumber(basicFinancials?.metric?.["52WeekHigh"]) ? `${cSym}${cConv(basicFinancials!.metric!["52WeekHigh"]!).toFixed(2)}` : undefined,
+                              week52Low: isNumber(basicFinancials?.metric?.["52WeekLow"]) ? `${cSym}${cConv(basicFinancials!.metric!["52WeekLow"]!).toFixed(2)}` : undefined,
                               recommendations: rec ? { buy: rec.strongBuy + rec.buy, hold: rec.hold, sell: rec.sell + rec.strongSell } : undefined,
-                              priceTarget: priceTargetData ? { low: isNumber(priceTargetData.targetLow) ? `$${priceTargetData.targetLow!.toFixed(2)}` : undefined, mean: isNumber(priceTargetData.targetMean) ? `$${priceTargetData.targetMean!.toFixed(2)}` : undefined, high: isNumber(priceTargetData.targetHigh) ? `$${priceTargetData.targetHigh!.toFixed(2)}` : undefined } : undefined,
+                              priceTarget: priceTargetData ? { low: isNumber(priceTargetData.targetLow) ? `${cSym}${cConv(priceTargetData.targetLow!).toFixed(2)}` : undefined, mean: isNumber(priceTargetData.targetMean) ? `${cSym}${cConv(priceTargetData.targetMean!).toFixed(2)}` : undefined, high: isNumber(priceTargetData.targetHigh) ? `${cSym}${cConv(priceTargetData.targetHigh!).toFixed(2)}` : undefined } : undefined,
                             });
                           }}
                           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:border-blue-500/30 hover:text-white transition-all"
@@ -1771,15 +1813,15 @@ function HomeContent() {
                               high: stockData.h,
                               low: stockData.l,
                               prevClose: stockData.pc,
-                              marketCap: isNumber(companyData.marketCapitalization) ? formatCompactNumber(companyData.marketCapitalization * 1e6, "$") : undefined,
+                              marketCap: isNumber(companyData.marketCapitalization) ? formatCompactNumber(cConv(companyData.marketCapitalization * 1e6), cSym) : undefined,
                               exchange: companyData.exchange ?? undefined,
                               industry: companyData.finnhubIndustry ?? undefined,
                               pe: isNumber(basicFinancials?.metric?.peBasicExclExtraTTM) ? basicFinancials!.metric!.peBasicExclExtraTTM!.toFixed(2) : undefined,
-                              eps: isNumber(basicFinancials?.metric?.epsBasicExclExtraItemsTTM) ? `$${basicFinancials!.metric!.epsBasicExclExtraItemsTTM!.toFixed(2)}` : undefined,
-                              week52High: isNumber(basicFinancials?.metric?.["52WeekHigh"]) ? `$${basicFinancials!.metric!["52WeekHigh"]!.toFixed(2)}` : undefined,
-                              week52Low: isNumber(basicFinancials?.metric?.["52WeekLow"]) ? `$${basicFinancials!.metric!["52WeekLow"]!.toFixed(2)}` : undefined,
+                              eps: isNumber(basicFinancials?.metric?.epsBasicExclExtraItemsTTM) ? `${cSym}${cConv(basicFinancials!.metric!.epsBasicExclExtraItemsTTM!).toFixed(2)}` : undefined,
+                              week52High: isNumber(basicFinancials?.metric?.["52WeekHigh"]) ? `${cSym}${cConv(basicFinancials!.metric!["52WeekHigh"]!).toFixed(2)}` : undefined,
+                              week52Low: isNumber(basicFinancials?.metric?.["52WeekLow"]) ? `${cSym}${cConv(basicFinancials!.metric!["52WeekLow"]!).toFixed(2)}` : undefined,
                               recommendations: rec ? { buy: rec.strongBuy + rec.buy, hold: rec.hold, sell: rec.sell + rec.strongSell } : undefined,
-                              priceTarget: priceTargetData ? { low: isNumber(priceTargetData.targetLow) ? `$${priceTargetData.targetLow!.toFixed(2)}` : undefined, mean: isNumber(priceTargetData.targetMean) ? `$${priceTargetData.targetMean!.toFixed(2)}` : undefined, high: isNumber(priceTargetData.targetHigh) ? `$${priceTargetData.targetHigh!.toFixed(2)}` : undefined } : undefined,
+                              priceTarget: priceTargetData ? { low: isNumber(priceTargetData.targetLow) ? `${cSym}${cConv(priceTargetData.targetLow!).toFixed(2)}` : undefined, mean: isNumber(priceTargetData.targetMean) ? `${cSym}${cConv(priceTargetData.targetMean!).toFixed(2)}` : undefined, high: isNumber(priceTargetData.targetHigh) ? `${cSym}${cConv(priceTargetData.targetHigh!).toFixed(2)}` : undefined } : undefined,
                             });
                           }}
                           className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-400 hover:border-blue-500/30 hover:text-white transition-all"
@@ -1998,14 +2040,6 @@ function HomeContent() {
                     }
                   >
                     <TradingViewChart symbol={ticker} />
-                  </SectionCard>
-
-                  <SectionCard
-                    title="Price Chart"
-                    subtitle="Candlestick and line chart with volume overlay."
-                    icon={<FiTrendingUp className="text-emerald-500" />}
-                  >
-                    <StockChart symbol={ticker} />
                   </SectionCard>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">

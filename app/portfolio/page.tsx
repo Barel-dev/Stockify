@@ -16,6 +16,7 @@ import {
   FiX,
 } from "react-icons/fi";
 import Link from "next/link";
+import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 
@@ -44,6 +45,7 @@ const MARKET_DB: SuggestionItem[] = [
 
 export default function PortfolioPage() {
   const { isSignedIn } = useUser();
+  const { symbol: cSym, convert: cConv } = useCurrency();
   const [holdings, setHoldings] = useState<HoldingData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -264,12 +266,12 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiPieChart size={12} /> Portfolio Value</p>
-                <p className="mt-2 text-2xl font-black text-white">${totalCurrent.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
+                <p className="mt-2 text-2xl font-black text-white">{cSym}{cConv(totalCurrent).toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiDollarSign size={12} /> Total P&L</p>
                 <p className={`mt-2 text-2xl font-black ${totalPL >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                  {totalPL >= 0 ? "+" : ""}{totalPL.toLocaleString(undefined, { maximumFractionDigits: 2 })} ({totalPLPct >= 0 ? "+" : ""}{totalPLPct.toFixed(2)}%)
+                  {totalPL >= 0 ? "+" : ""}{cSym}{Math.abs(cConv(totalPL)).toLocaleString(undefined, { maximumFractionDigits: 2 })} ({totalPLPct >= 0 ? "+" : ""}{totalPLPct.toFixed(2)}%)
                 </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
@@ -424,15 +426,15 @@ export default function PortfolioPage() {
                         <p className="text-[10px] text-gray-500 mt-0.5">{h.company_name || h.symbol}</p>
                       </Link>
                       <p className="text-right text-sm font-bold text-white">{h.shares}</p>
-                      <p className="text-right text-sm font-bold text-gray-400">${h.buy_price.toFixed(2)}</p>
+                      <p className="text-right text-sm font-bold text-gray-400">{cSym}{cConv(h.buy_price).toFixed(2)}</p>
                       <p className="text-right text-sm font-bold text-white">
-                        {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : "N/A"}
+                        {currentPrice > 0 ? `${cSym}${cConv(currentPrice).toFixed(2)}` : "N/A"}
                       </p>
                       <div className="text-right">
                         {currentPrice > 0 ? (
                           <>
                             <p className={`text-sm font-black ${isPos ? "text-emerald-400" : "text-rose-400"}`}>
-                              {isPos ? "+" : ""}{pl.toFixed(2)}
+                              {isPos ? "+" : ""}{cSym}{Math.abs(cConv(pl)).toFixed(2)}
                             </p>
                             <p className={`text-[10px] font-bold ${isPos ? "text-emerald-400/70" : "text-rose-400/70"}`}>
                               {isPos ? "+" : ""}{plPct.toFixed(2)}%

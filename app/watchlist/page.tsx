@@ -6,6 +6,7 @@ import { FiStar, FiArrowUp, FiArrowDown, FiTrash2, FiSearch, FiTrendingUp, FiTre
 import Link from "next/link";
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import { useLivePrices } from "@/lib/use-live-prices";
+import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 
@@ -28,6 +29,7 @@ type WatchlistCardData = WatchlistItem & {
 
 export default function WatchlistPage() {
   const { isSignedIn } = useUser();
+  const { symbol: cSym, convert: cConv } = useCurrency();
   const [items, setItems] = useState<WatchlistCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [wsToken, setWsToken] = useState("");
@@ -230,7 +232,7 @@ export default function WatchlistPage() {
                               {price > 0 ? (
                                 <div>
                                   <p className="text-2xl font-black text-white">
-                                    ${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    {cSym}{cConv(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </p>
                                   <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
                                     isPositive

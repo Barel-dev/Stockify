@@ -11,6 +11,7 @@ import {
   FiChevronDown,
   FiChevronUp,
 } from "react-icons/fi";
+import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 
@@ -49,14 +50,16 @@ const SCREENER_UNIVERSE = [
   "DIS", "CMCSA", "VZ", "PM", "ADBE", "HON", "QCOM", "BA", "CAT", "GS",
 ];
 
-function fmtMktCap(v: number | null | undefined): string {
+function fmtMktCap(v: number | null | undefined, sym = "$", conv?: (n: number) => number): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}T`;
-  if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}B`;
-  return `$${v.toFixed(0)}M`;
+  const c = conv ? conv(v) : v;
+  if (c >= 1e6) return `${sym}${(c / 1e6).toFixed(1)}T`;
+  if (c >= 1e3) return `${sym}${(c / 1e3).toFixed(1)}B`;
+  return `${sym}${c.toFixed(0)}M`;
 }
 
 export default function ScreenerPage() {
+  const { symbol: cSym, convert: cConv } = useCurrency();
   const [results, setResults] = useState<ScreenerResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -260,11 +263,11 @@ export default function ScreenerPage() {
                   >
                     <p className="text-sm font-black text-white">{r.symbol}</p>
                     <p className="text-xs text-gray-400 truncate hidden lg:block">{r.profile?.name ?? "—"}</p>
-                    <p className="text-sm font-bold text-white text-right">${(r.quote?.c ?? 0).toFixed(2)}</p>
+                    <p className="text-sm font-bold text-white text-right">{cSym}{cConv(r.quote?.c ?? 0).toFixed(2)}</p>
                     <p className={`text-sm font-bold text-right ${isPos ? "text-emerald-400" : "text-rose-400"}`}>
                       {isPos ? "+" : ""}{dp.toFixed(2)}%
                     </p>
-                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{fmtMktCap(r.profile?.marketCapitalization)}</p>
+                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{fmtMktCap(r.profile?.marketCapitalization, cSym, cConv)}</p>
                     <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.peBasicExclExtraTTM?.toFixed(1) ?? "—"}</p>
                     <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.dividendYieldIndicatedAnnual?.toFixed(2) ?? "—"}%</p>
                     <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.beta?.toFixed(2) ?? "—"}</p>

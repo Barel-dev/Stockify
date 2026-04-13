@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type FormEvent, type KeyboardEvent, type ChangeEvent } from "react";
 import Link from "next/link";
+import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import Image from "next/image";
@@ -141,9 +142,10 @@ const SYMBOL_ALIASES: Record<string, string> = {
 const cleanSymbol = (symbol: string) =>
   symbol.replace("BINANCE:", "").replace("COINBASE:", "").replace("OANDA:", "");
 
-function fmt(value: number | null | undefined, digits = 2): string {
+function fmt(value: number | null | undefined, digits = 2, sym = "$", conv?: (n: number) => number): string {
   if (value == null || !Number.isFinite(value)) return "N/A";
-  return `$${value.toLocaleString("en-US", {
+  const v = conv ? conv(value) : value;
+  return `${sym}${v.toLocaleString("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   })}`;
@@ -162,12 +164,12 @@ function fmtPct(value: number | null | undefined, digits = 2): string {
   return `${value.toFixed(digits)}%`;
 }
 
-function fmtMarketCap(value: number | null | undefined): string {
+function fmtMarketCap(value: number | null | undefined, sym = "$", conv?: (n: number) => number): string {
   if (value == null || !Number.isFinite(value)) return "N/A";
-  const inMillions = value;
-  if (inMillions >= 1_000_000) return `$${(inMillions / 1_000_000).toFixed(2)}T`;
-  if (inMillions >= 1_000) return `$${(inMillions / 1_000).toFixed(2)}B`;
-  return `$${inMillions.toFixed(0)}M`;
+  const v = conv ? conv(value) : value;
+  if (v >= 1_000_000) return `${sym}${(v / 1_000_000).toFixed(2)}T`;
+  if (v >= 1_000) return `${sym}${(v / 1_000).toFixed(2)}B`;
+  return `${sym}${v.toFixed(0)}M`;
 }
 
 const dedupeSuggestions = (items: SuggestionItem[]) => {
@@ -353,6 +355,9 @@ function TickerCard({
   data: TickerData;
   isWinner: boolean;
 }) {
+  const { symbol: cSym, convert: cConv } = useCurrency();
+  const f = useCallback((v: number | null | undefined, d = 2) => fmt(v, d, cSym, cConv), [cSym, cConv]);
+  const fMC = useCallback((v: number | null | undefined) => fmtMarketCap(v, cSym, cConv), [cSym, cConv]);
   const { quote, profile, symbol, recommendations, metrics, priceTarget, earnings } = data;
   const isPositive = (quote?.dp ?? 0) >= 0;
   const initial = (profile?.name ?? symbol).charAt(0).toUpperCase();
@@ -395,7 +400,7 @@ function TickerCard({
       {/* Price + change */}
       {quote && quote.c > 0 ? (
         <div className="mb-6">
-          <p className="text-3xl font-black text-white tabular-nums">{fmt(quote.c)}</p>
+          <p className="text-3xl font-black text-white tabular-nums">{f(quote.c)}</p>
           <div className="mt-2 flex items-center gap-2">
             <span
               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-black ${
@@ -406,7 +411,7 @@ function TickerCard({
               {isPositive ? "+" : ""}{quote.dp.toFixed(2)}%
             </span>
             <span className={`text-sm font-bold ${isPositive ? "text-emerald-400/70" : "text-rose-400/70"}`}>
-              {isPositive ? "+" : ""}{fmt(quote.d)}
+              {isPositive ? "+" : ""}{f(quote.d)}
             </span>
           </div>
         </div>
@@ -420,19 +425,19 @@ function TickerCard({
       {/* OHLC + fundamentals grid */}
       <div className="grid grid-cols-2 gap-2.5">
         {[
-          { label: "Open",        value: fmt(quote?.o) },
-          { label: "Prev Close",  value: fmt(quote?.pc) },
-          { label: "High",        value: quote?.h ? fmt(quote.h) : "N/A" },
-          { label: "Low",         value: quote?.l ? fmt(quote.l) : "N/A" },
-          { label: "52W High",    value: fmt(m?.["52WeekHigh"]) },
-          { label: "52W Low",     value: fmt(m?.["52WeekLow"]) },
+          { label: "Open",        value: f(quote?.o) },
+          { label: "Prev Close",  value: f(quote?.pc) },
+          { label: "High",        value: quote?.h ? f(quote.h) : "N/A" },
+          { label: "Low",         value: quote?.l ? f(quote.l) : "N/A" },
+          { label: "52W High",    value: f(m?.["52WeekHigh"]) },
+          { label: "52W Low",     value: f(m?.["52WeekLow"]) },
           { label: "P/E Ratio",   value: fmtNum(m?.peBasicExclExtraTTM) },
           { label: "P/B Ratio",   value: fmtNum(m?.pbAnnual) },
-          { label: "EPS (TTM)",   value: fmt(m?.epsBasicExclExtraItemsTTM) },
+          { label: "EPS (TTM)",   value: f(m?.epsBasicExclExtraItemsTTM) },
           { label: "Div Yield",   value: m?.dividendYieldIndicatedAnnual != null ? fmtPct(m.dividendYieldIndicatedAnnual) : "N/A" },
           { label: "ROE",         value: m?.roeTTM != null ? fmtPct(m.roeTTM) : "N/A" },
           { label: "Beta",        value: fmtNum(m?.beta) },
-          { label: "Market Cap",  value: fmtMarketCap(profile?.marketCapitalization) },
+          { label: "Market Cap",  value: fMC(profile?.marketCapitalization) },
           { label: "Exchange",    value: profile?.exchange ?? "N/A" },
           { label: "Industry",    value: profile?.finnhubIndustry ?? "N/A" },
           { label: "Country",     value: profile?.country ?? "N/A" },
@@ -490,15 +495,15 @@ function TickerCard({
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">Low</p>
-              <p className="text-sm font-bold text-rose-400">{fmt(priceTarget.targetLow)}</p>
+              <p className="text-sm font-bold text-rose-400">{f(priceTarget.targetLow)}</p>
             </div>
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">Mean</p>
-              <p className="text-sm font-bold text-blue-400">{fmt(priceTarget.targetMean)}</p>
+              <p className="text-sm font-bold text-blue-400">{f(priceTarget.targetMean)}</p>
             </div>
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">High</p>
-              <p className="text-sm font-bold text-emerald-400">{fmt(priceTarget.targetHigh)}</p>
+              <p className="text-sm font-bold text-emerald-400">{f(priceTarget.targetHigh)}</p>
             </div>
           </div>
         </div>
@@ -513,11 +518,11 @@ function TickerCard({
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">Actual</p>
-              <p className="text-sm font-bold text-white">{fmt(latestEarnings.actual)}</p>
+              <p className="text-sm font-bold text-white">{f(latestEarnings.actual)}</p>
             </div>
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">Estimate</p>
-              <p className="text-sm font-bold text-gray-400">{fmt(latestEarnings.estimate)}</p>
+              <p className="text-sm font-bold text-gray-400">{f(latestEarnings.estimate)}</p>
             </div>
             <div>
               <p className="text-[9px] text-gray-500 font-bold uppercase">Surprise</p>
@@ -534,6 +539,9 @@ function TickerCard({
 
 // Head-to-head comparison table
 function ComparisonTable({ left, right }: { left: TickerData; right: TickerData }) {
+  const { symbol: cSym, convert: cConv } = useCurrency();
+  const f = useCallback((v: number | null | undefined, d = 2) => fmt(v, d, cSym, cConv), [cSym, cConv]);
+  const fMC = useCallback((v: number | null | undefined) => fmtMarketCap(v, cSym, cConv), [cSym, cConv]);
   const lq = left.quote;
   const rq = right.quote;
   const lp = left.profile;
@@ -576,21 +584,21 @@ function ComparisonTable({ left, right }: { left: TickerData; right: TickerData 
           b: rq ? `${rq.dp >= 0 ? "+" : ""}${rq.dp.toFixed(2)}%` : "N/A",
           winnerSide: winner(lq?.dp, rq?.dp),
         },
-        { label: "Current Price", a: fmt(lq?.c), b: fmt(rq?.c), winnerSide: null },
-        { label: "Day High", a: fmt(lq?.h), b: fmt(rq?.h), winnerSide: winner(lq?.h, rq?.h) },
-        { label: "Day Low", a: fmt(lq?.l), b: fmt(rq?.l), winnerSide: winner(lq?.l, rq?.l, false) },
-        { label: "52W High", a: fmt(lm?.["52WeekHigh"]), b: fmt(rm?.["52WeekHigh"]), winnerSide: winner(lm?.["52WeekHigh"], rm?.["52WeekHigh"]) },
-        { label: "52W Low", a: fmt(lm?.["52WeekLow"]), b: fmt(rm?.["52WeekLow"]), winnerSide: winner(lm?.["52WeekLow"], rm?.["52WeekLow"], false) },
+        { label: "Current Price", a: f(lq?.c), b: f(rq?.c), winnerSide: null },
+        { label: "Day High", a: f(lq?.h), b: f(rq?.h), winnerSide: winner(lq?.h, rq?.h) },
+        { label: "Day Low", a: f(lq?.l), b: f(rq?.l), winnerSide: winner(lq?.l, rq?.l, false) },
+        { label: "52W High", a: f(lm?.["52WeekHigh"]), b: f(rm?.["52WeekHigh"]), winnerSide: winner(lm?.["52WeekHigh"], rm?.["52WeekHigh"]) },
+        { label: "52W Low", a: f(lm?.["52WeekLow"]), b: f(rm?.["52WeekLow"]), winnerSide: winner(lm?.["52WeekLow"], rm?.["52WeekLow"], false) },
       ],
     },
     {
       title: "Fundamentals",
       icon: <FiBriefcase size={12} />,
       rows: [
-        { label: "Market Cap", a: fmtMarketCap(lp?.marketCapitalization), b: fmtMarketCap(rp?.marketCapitalization), winnerSide: winner(lp?.marketCapitalization, rp?.marketCapitalization) },
+        { label: "Market Cap", a: fMC(lp?.marketCapitalization), b: fMC(rp?.marketCapitalization), winnerSide: winner(lp?.marketCapitalization, rp?.marketCapitalization) },
         { label: "P/E Ratio", a: fmtNum(lm?.peBasicExclExtraTTM), b: fmtNum(rm?.peBasicExclExtraTTM), winnerSide: winner(lm?.peBasicExclExtraTTM, rm?.peBasicExclExtraTTM, false) },
         { label: "P/B Ratio", a: fmtNum(lm?.pbAnnual), b: fmtNum(rm?.pbAnnual), winnerSide: winner(lm?.pbAnnual, rm?.pbAnnual, false) },
-        { label: "EPS (TTM)", a: fmt(lm?.epsBasicExclExtraItemsTTM), b: fmt(rm?.epsBasicExclExtraItemsTTM), winnerSide: winner(lm?.epsBasicExclExtraItemsTTM, rm?.epsBasicExclExtraItemsTTM) },
+        { label: "EPS (TTM)", a: f(lm?.epsBasicExclExtraItemsTTM), b: f(rm?.epsBasicExclExtraItemsTTM), winnerSide: winner(lm?.epsBasicExclExtraItemsTTM, rm?.epsBasicExclExtraItemsTTM) },
         { label: "Div Yield", a: lm?.dividendYieldIndicatedAnnual != null ? fmtPct(lm.dividendYieldIndicatedAnnual) : "N/A", b: rm?.dividendYieldIndicatedAnnual != null ? fmtPct(rm.dividendYieldIndicatedAnnual) : "N/A", winnerSide: winner(lm?.dividendYieldIndicatedAnnual, rm?.dividendYieldIndicatedAnnual) },
         { label: "ROE", a: lm?.roeTTM != null ? fmtPct(lm.roeTTM) : "N/A", b: rm?.roeTTM != null ? fmtPct(rm.roeTTM) : "N/A", winnerSide: winner(lm?.roeTTM, rm?.roeTTM) },
         { label: "Beta", a: fmtNum(lm?.beta), b: fmtNum(rm?.beta), winnerSide: null },
@@ -601,9 +609,9 @@ function ComparisonTable({ left, right }: { left: TickerData; right: TickerData 
       icon: <FiTarget size={12} />,
       rows: [
         { label: "Buy %", a: buyPct(lRec) != null ? fmtPct(buyPct(lRec)) : "N/A", b: buyPct(rRec) != null ? fmtPct(buyPct(rRec)) : "N/A", winnerSide: winner(buyPct(lRec), buyPct(rRec)) },
-        { label: "Target Mean", a: fmt(lpt?.targetMean), b: fmt(rpt?.targetMean), winnerSide: null },
-        { label: "Target High", a: fmt(lpt?.targetHigh), b: fmt(rpt?.targetHigh), winnerSide: null },
-        { label: "Target Low", a: fmt(lpt?.targetLow), b: fmt(rpt?.targetLow), winnerSide: null },
+        { label: "Target Mean", a: f(lpt?.targetMean), b: f(rpt?.targetMean), winnerSide: null },
+        { label: "Target High", a: f(lpt?.targetHigh), b: f(rpt?.targetHigh), winnerSide: null },
+        { label: "Target Low", a: f(lpt?.targetLow), b: f(rpt?.targetLow), winnerSide: null },
       ],
     },
   ];

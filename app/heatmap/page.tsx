@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FiGrid, FiRefreshCw, FiTrendingUp, FiTrendingDown, FiArrowUp, FiArrowDown, FiActivity } from "react-icons/fi";
+import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 
@@ -83,6 +84,7 @@ function getHeatGlow(dp: number): string {
 }
 
 export default function HeatmapPage() {
+  const { symbol: cSym, convert: cConv } = useCurrency();
   const [stocks, setStocks] = useState<SectorStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -334,7 +336,7 @@ export default function HeatmapPage() {
                           </div>
                           {price > 0 && (
                             <div className="mt-3">
-                              <p className="text-lg font-black text-white/90">${price.toFixed(2)}</p>
+                              <p className="text-lg font-black text-white/90">{cSym}{cConv(price).toFixed(2)}</p>
                               <p className={`text-xs font-bold mt-0.5 ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
                                 {isPositive ? "+" : ""}{dp.toFixed(2)}%
                               </p>

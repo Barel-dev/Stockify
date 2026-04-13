@@ -22,3 +22,32 @@ export function saveCurrency(currency: Currency) {
 export function getCurrencySymbol(currency: Currency): string {
   return CURRENCIES.find((c) => c.code === currency)?.symbol ?? "$";
 }
+
+// Exchange rates cache (USD-based)
+let ratesCache: Record<string, number> | null = null;
+let ratesFetchPromise: Promise<Record<string, number>> | null = null;
+
+export async function getExchangeRates(): Promise<Record<string, number>> {
+  if (ratesCache) return ratesCache;
+  if (ratesFetchPromise) return ratesFetchPromise;
+  ratesFetchPromise = fetch("/api/exchange-rates")
+    .then((r) => r.json())
+    .then((data: Record<string, number>) => {
+      ratesCache = data;
+      // Refresh cache every 5 minutes
+      setTimeout(() => { ratesCache = null; ratesFetchPromise = null; }, 5 * 60 * 1000);
+      return data;
+    })
+    .catch(() => {
+      ratesFetchPromise = null;
+      return { USD: 1 } as Record<string, number>;
+    });
+  return ratesFetchPromise;
+}
+
+export function convertPrice(usdPrice: number, rates: Record<string, number>, currency: Currency): number {
+  if (currency === "USD") return usdPrice;
+  const rate = rates[currency];
+  if (!rate) return usdPrice;
+  return usdPrice * rate;
+}
