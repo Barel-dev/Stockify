@@ -38,11 +38,14 @@ import {
   FiTrash2,
   FiDownload,
   FiFileText,
+  FiGrid,
+  FiFilter,
 } from "react-icons/fi";
 import Image from "next/image";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
+import Navbar from "@/components/Navbar";
 
 // API calls go through server-side routes in /api/*
 
@@ -1516,53 +1519,19 @@ function HomeContent() {
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
         </div>
 
-        <div className="fixed top-5 left-6 right-6 z-50 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-8 w-8">
-              <defs>
-                <linearGradient id="logo-g" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#3b82f6"/>
-                  <stop offset="100%" stopColor="#8b5cf6"/>
-                </linearGradient>
-              </defs>
-              <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
-              <rect x="96" y="280" width="56" height="140" rx="8" fill="url(#logo-g)" opacity="0.5"/>
-              <rect x="192" y="200" width="56" height="220" rx="8" fill="url(#logo-g)" opacity="0.65"/>
-              <rect x="288" y="140" width="56" height="280" rx="8" fill="url(#logo-g)" opacity="0.8"/>
-              <rect x="384" y="80" width="56" height="340" rx="8" fill="url(#logo-g)"/>
-              <line x1="124" y1="270" x2="412" y2="70" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" opacity="0.9"/>
-            </svg>
-            <span className="text-lg font-bold tracking-tight text-white">Stockify</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {isSignedIn ? (
-              <>
-                {[
-                  { href: "/compare", label: "Compare" },
-                  { href: "/watchlist", label: "Watchlist" },
-                  { href: "/portfolio", label: "Portfolio" },
-                  { href: "/screener", label: "Screener" },
-                  { href: "/heatmap", label: "Heatmap" },
-                ].map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-gray-300 hover:border-blue-500/30 hover:text-white transition-all"
-                  >
-                    {link.label}
-                  </a>
-                ))}
-                <UserButton />
-              </>
+        <Navbar
+          rightSlot={
+            isSignedIn ? (
+              <UserButton />
             ) : (
               <SignInButton mode="modal">
                 <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
                   Sign In
                 </button>
               </SignInButton>
-            )}
-          </div>
-        </div>
+            )
+          }
+        />
 
         {loading && stockData && (
           <div className="fixed top-5 right-5 z-50 rounded-full border border-blue-500/30 bg-black/80 backdrop-blur-xl px-4 py-2 text-xs uppercase tracking-[0.25em] text-blue-300 font-bold shadow-2xl">

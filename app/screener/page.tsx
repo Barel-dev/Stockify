@@ -11,6 +11,7 @@ import {
   FiChevronDown,
   FiChevronUp,
 } from "react-icons/fi";
+import Navbar from "@/components/Navbar";
 
 type QuoteData = { c: number; d: number; dp: number; h: number; l: number; o: number; pc: number };
 type ProfileData = {
@@ -52,25 +53,6 @@ function fmtMktCap(v: number | null | undefined): string {
   if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}T`;
   if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}B`;
   return `$${v.toFixed(0)}M`;
-}
-
-function LogoSVG() {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="h-8 w-8" aria-hidden="true">
-      <defs>
-        <linearGradient id="sc-logo-g" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="100%" stopColor="#8b5cf6" />
-        </linearGradient>
-      </defs>
-      <rect width="512" height="512" rx="96" fill="#0a0a0a" />
-      <rect x="96" y="280" width="56" height="140" rx="8" fill="url(#sc-logo-g)" opacity="0.5" />
-      <rect x="192" y="200" width="56" height="220" rx="8" fill="url(#sc-logo-g)" opacity="0.65" />
-      <rect x="288" y="140" width="56" height="280" rx="8" fill="url(#sc-logo-g)" opacity="0.8" />
-      <rect x="384" y="80" width="56" height="340" rx="8" fill="url(#sc-logo-g)" />
-      <line x1="124" y1="270" x2="412" y2="70" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" opacity="0.9" />
-    </svg>
-  );
 }
 
 export default function ScreenerPage() {
@@ -165,15 +147,7 @@ export default function ScreenerPage() {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
       </div>
 
-      <div className="fixed top-5 left-6 right-6 z-50 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoSVG />
-          <span className="text-lg font-bold tracking-tight text-white">Stockify</span>
-        </Link>
-        <Link href="/" className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-gray-300 hover:border-blue-500/30 hover:text-white transition-all">
-          Search
-        </Link>
-      </div>
+      <Navbar />
 
       <div className="relative z-10 pt-28 px-4 sm:px-6 pb-32">
         <div className="max-w-7xl mx-auto">

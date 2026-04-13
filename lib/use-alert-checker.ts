@@ -34,7 +34,7 @@ export function useAlertChecker(alerts: AlertItem[], isSignedIn: boolean) {
     if (activeAlerts.length === 0) return;
 
     const check = async () => {
-      const symbols = [...new Set(activeAlerts.map((a) => a.symbol))];
+      const symbols = Array.from(new Set(activeAlerts.map((a) => a.symbol)));
 
       for (const symbol of symbols) {
         try {

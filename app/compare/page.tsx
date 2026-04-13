@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, type FormEvent, type KeyboardEvent, type ChangeEvent } from "react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import {
   FiSearch,
@@ -872,19 +873,7 @@ export default function ComparePage() {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
       </div>
 
-      {/* Fixed top nav */}
-      <div className="fixed top-5 left-6 right-6 z-50 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5">
-          <LogoSVG />
-          <span className="text-lg font-bold tracking-tight text-white">Stockify</span>
-        </Link>
-        <Link
-          href="/"
-          className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-gray-300 hover:border-blue-500/30 hover:text-white transition-all"
-        >
-          Search
-        </Link>
-      </div>
+      <Navbar />
 
       {/* Page content */}
       <div className="relative z-10 pt-28 px-4 sm:px-6 pb-32">
