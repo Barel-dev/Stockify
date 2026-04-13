@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import {
   FiSearch,
   FiBarChart2,
@@ -39,8 +40,9 @@ function LogoSVG() {
   );
 }
 
-export default function Navbar({ rightSlot }: { rightSlot?: React.ReactNode }) {
+export default function Navbar() {
   const pathname = usePathname();
+  const { isSignedIn } = useUser();
 
   return (
     <div className="fixed top-5 left-4 right-4 sm:left-6 sm:right-6 z-50 flex items-center justify-between gap-3">
@@ -94,8 +96,18 @@ export default function Navbar({ rightSlot }: { rightSlot?: React.ReactNode }) {
         })}
       </nav>
 
-      {/* Right slot (auth buttons, etc.) */}
-      {rightSlot && <div className="shrink-0">{rightSlot}</div>}
+      {/* Auth */}
+      <div className="shrink-0">
+        {isSignedIn ? (
+          <UserButton />
+        ) : (
+          <SignInButton mode="modal">
+            <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
+              Sign In
+            </button>
+          </SignInButton>
+        )}
+      </div>
     </div>
   );
 }

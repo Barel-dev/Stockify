@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { FiGrid, FiRefreshCw } from "react-icons/fi";
+import { FiGrid, FiRefreshCw, FiTrendingUp, FiTrendingDown, FiArrowUp, FiArrowDown, FiActivity } from "react-icons/fi";
 import Navbar from "@/components/Navbar";
 
-type QuoteData = { c: number; dp: number };
+type QuoteData = { c: number; dp: number; d: number };
 
 type SectorStock = {
   symbol: string;
@@ -15,63 +15,81 @@ type SectorStock = {
 };
 
 const SECTOR_STOCKS: { symbol: string; name: string; sector: string }[] = [
-  // Technology
   { symbol: "AAPL", name: "Apple", sector: "Technology" },
   { symbol: "MSFT", name: "Microsoft", sector: "Technology" },
   { symbol: "NVDA", name: "NVIDIA", sector: "Technology" },
   { symbol: "GOOG", name: "Alphabet", sector: "Technology" },
   { symbol: "META", name: "Meta", sector: "Technology" },
   { symbol: "TSM", name: "TSMC", sector: "Technology" },
-  // Healthcare
   { symbol: "UNH", name: "UnitedHealth", sector: "Healthcare" },
-  { symbol: "JNJ", name: "Johnson & Johnson", sector: "Healthcare" },
+  { symbol: "JNJ", name: "J&J", sector: "Healthcare" },
   { symbol: "LLY", name: "Eli Lilly", sector: "Healthcare" },
   { symbol: "PFE", name: "Pfizer", sector: "Healthcare" },
-  // Finance
   { symbol: "JPM", name: "JPMorgan", sector: "Finance" },
   { symbol: "V", name: "Visa", sector: "Finance" },
-  { symbol: "BAC", name: "Bank of America", sector: "Finance" },
-  { symbol: "GS", name: "Goldman Sachs", sector: "Finance" },
-  // Energy
-  { symbol: "XOM", name: "ExxonMobil", sector: "Energy" },
+  { symbol: "BAC", name: "BofA", sector: "Finance" },
+  { symbol: "GS", name: "Goldman", sector: "Finance" },
+  { symbol: "XOM", name: "Exxon", sector: "Energy" },
   { symbol: "CVX", name: "Chevron", sector: "Energy" },
-  { symbol: "COP", name: "ConocoPhillips", sector: "Energy" },
-  // Consumer
+  { symbol: "COP", name: "Conoco", sector: "Energy" },
   { symbol: "AMZN", name: "Amazon", sector: "Consumer" },
   { symbol: "TSLA", name: "Tesla", sector: "Consumer" },
   { symbol: "WMT", name: "Walmart", sector: "Consumer" },
   { symbol: "NKE", name: "Nike", sector: "Consumer" },
-  // Industrial
   { symbol: "CAT", name: "Caterpillar", sector: "Industrial" },
   { symbol: "BA", name: "Boeing", sector: "Industrial" },
   { symbol: "HON", name: "Honeywell", sector: "Industrial" },
-  // Communication
   { symbol: "NFLX", name: "Netflix", sector: "Communication" },
   { symbol: "DIS", name: "Disney", sector: "Communication" },
   { symbol: "CMCSA", name: "Comcast", sector: "Communication" },
 ];
 
-function getHeatColor(dp: number): string {
-  if (dp >= 3) return "bg-emerald-500";
-  if (dp >= 2) return "bg-emerald-500/80";
-  if (dp >= 1) return "bg-emerald-600/70";
-  if (dp >= 0.5) return "bg-emerald-700/60";
-  if (dp >= 0) return "bg-emerald-900/40";
-  if (dp >= -0.5) return "bg-rose-900/40";
-  if (dp >= -1) return "bg-rose-700/60";
-  if (dp >= -2) return "bg-rose-600/70";
-  if (dp >= -3) return "bg-rose-500/80";
-  return "bg-rose-500";
+const SECTOR_ICONS: Record<string, string> = {
+  Technology: "💻",
+  Healthcare: "🏥",
+  Finance: "🏦",
+  Energy: "⚡",
+  Consumer: "🛒",
+  Industrial: "🏗️",
+  Communication: "📡",
+};
+
+function getHeatBg(dp: number): string {
+  if (dp >= 3) return "from-emerald-500/40 to-emerald-600/20";
+  if (dp >= 2) return "from-emerald-500/30 to-emerald-600/15";
+  if (dp >= 1) return "from-emerald-600/25 to-emerald-700/10";
+  if (dp >= 0.5) return "from-emerald-700/20 to-emerald-800/10";
+  if (dp >= 0) return "from-emerald-900/15 to-emerald-950/5";
+  if (dp >= -0.5) return "from-rose-900/15 to-rose-950/5";
+  if (dp >= -1) return "from-rose-700/20 to-rose-800/10";
+  if (dp >= -2) return "from-rose-600/25 to-rose-700/10";
+  if (dp >= -3) return "from-rose-500/30 to-rose-600/15";
+  return "from-rose-500/40 to-rose-600/20";
+}
+
+function getHeatBorder(dp: number): string {
+  if (dp >= 1) return "border-emerald-500/30";
+  if (dp >= 0) return "border-emerald-500/15";
+  if (dp >= -1) return "border-rose-500/15";
+  return "border-rose-500/30";
+}
+
+function getHeatGlow(dp: number): string {
+  if (dp >= 2) return "shadow-emerald-500/10";
+  if (dp >= 0) return "shadow-transparent";
+  if (dp >= -2) return "shadow-transparent";
+  return "shadow-rose-500/10";
 }
 
 export default function HeatmapPage() {
   const [stocks, setStocks] = useState<SectorStock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   const loadData = async () => {
     setLoading(true);
+    setLoadProgress(0);
     try {
-      // Batch in groups of 8 with 1.2s delay to stay under Finnhub's 60/min rate limit
       const BATCH = 8;
       const results: SectorStock[] = [];
       for (let i = 0; i < SECTOR_STOCKS.length; i += BATCH) {
@@ -89,14 +107,15 @@ export default function HeatmapPage() {
           })
         );
         results.push(...batchResults);
-        // Update UI progressively so user sees data appearing
         setStocks([...results]);
+        setLoadProgress(Math.round((results.length / SECTOR_STOCKS.length) * 100));
       }
       setStocks(results);
     } catch {
       setStocks(SECTOR_STOCKS.map((s) => ({ ...s, quote: null })));
     } finally {
       setLoading(false);
+      setLoadProgress(100);
     }
   };
 
@@ -110,12 +129,20 @@ export default function HeatmapPage() {
     sectors.set(s.sector, arr);
   }
 
-  // Sector averages
   const sectorAvgs = Array.from(sectors.entries()).map(([name, items]) => {
     const withQuote = items.filter((i) => i.quote && i.quote.c > 0);
     const avg = withQuote.length > 0 ? withQuote.reduce((s, i) => s + (i.quote?.dp ?? 0), 0) / withQuote.length : 0;
     return { name, avg, items };
   }).sort((a, b) => b.avg - a.avg);
+
+  // Market overview stats
+  const allWithQuote = stocks.filter((s) => s.quote && s.quote.c > 0);
+  const gainers = allWithQuote.filter((s) => (s.quote?.dp ?? 0) > 0).length;
+  const losers = allWithQuote.filter((s) => (s.quote?.dp ?? 0) < 0).length;
+  const unchanged = allWithQuote.length - gainers - losers;
+  const marketAvg = allWithQuote.length > 0 ? allWithQuote.reduce((s, i) => s + (i.quote?.dp ?? 0), 0) / allWithQuote.length : 0;
+  const bestStock = allWithQuote.length > 0 ? allWithQuote.reduce((a, b) => (a.quote?.dp ?? 0) > (b.quote?.dp ?? 0) ? a : b) : null;
+  const worstStock = allWithQuote.length > 0 ? allWithQuote.reduce((a, b) => (a.quote?.dp ?? 0) < (b.quote?.dp ?? 0) ? a : b) : null;
 
   return (
     <div className="bg-[#050505] text-white font-sans min-h-screen">
@@ -129,70 +156,196 @@ export default function HeatmapPage() {
 
       <div className="relative z-10 pt-28 px-4 sm:px-6 pb-32">
         <div className="max-w-7xl mx-auto">
+          {/* Header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <FiGrid className="text-blue-400 text-2xl" />
-              <h1 className="text-4xl md:text-5xl font-black tracking-tight">Market Heatmap</h1>
+              <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/20 border border-blue-500/20">
+                <FiGrid className="text-blue-400 text-xl" />
+              </div>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-black tracking-tight">Market Heatmap</h1>
+                <p className="text-gray-500 text-xs mt-0.5">Live sector performance · {allWithQuote.length} stocks tracked</p>
+              </div>
             </div>
             <button
               onClick={loadData}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-300 hover:border-blue-500/30 hover:text-white transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-gray-300 hover:border-blue-500/30 hover:bg-white/[0.06] hover:text-white transition-all disabled:opacity-50"
             >
-              <FiRefreshCw className={loading ? "animate-spin" : ""} size={12} />
-              Refresh
+              <FiRefreshCw className={loading ? "animate-spin" : ""} size={13} />
+              {loading ? `${loadProgress}%` : "Refresh"}
             </button>
           </div>
-          <p className="text-gray-400 text-sm mb-8">Live sector performance across major stocks.</p>
+
+          {/* Loading progress bar */}
+          {loading && (
+            <div className="mt-4 mb-6">
+              <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 ease-out"
+                  style={{ width: `${loadProgress}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-gray-600 mt-2 text-center uppercase tracking-widest">
+                Loading market data... {loadProgress}%
+              </p>
+            </div>
+          )}
+
+          {/* Market Overview Cards */}
+          {!loading && allWithQuote.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mt-6 mb-8">
+              <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5">
+                  <FiActivity size={10} /> Market Avg
+                </p>
+                <p className={`mt-1.5 text-xl font-black ${marketAvg >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  {marketAvg >= 0 ? "+" : ""}{marketAvg.toFixed(2)}%
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold">Gainers / Losers</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-xl font-black text-emerald-400">{gainers}</span>
+                  <span className="text-gray-600">/</span>
+                  <span className="text-xl font-black text-rose-400">{losers}</span>
+                  {unchanged > 0 && <span className="text-xs text-gray-600">({unchanged} flat)</span>}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5">
+                  <FiTrendingUp size={10} /> Top Gainer
+                </p>
+                <p className="mt-1.5 text-lg font-black text-emerald-400">{bestStock?.symbol ?? "—"}</p>
+                <p className="text-[10px] text-emerald-400/70 font-bold">
+                  {bestStock ? `+${(bestStock.quote?.dp ?? 0).toFixed(2)}%` : ""}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5">
+                  <FiTrendingDown size={10} /> Top Loser
+                </p>
+                <p className="mt-1.5 text-lg font-black text-rose-400">{worstStock?.symbol ?? "—"}</p>
+                <p className="text-[10px] text-rose-400/70 font-bold">
+                  {worstStock ? `${(worstStock.quote?.dp ?? 0).toFixed(2)}%` : ""}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-4 col-span-2 lg:col-span-1">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold">Breadth</p>
+                <div className="mt-2 flex items-center gap-1.5">
+                  <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden flex">
+                    <div className="h-full bg-emerald-500 rounded-l-full" style={{ width: `${allWithQuote.length > 0 ? (gainers / allWithQuote.length) * 100 : 0}%` }} />
+                    <div className="h-full bg-rose-500 rounded-r-full" style={{ width: `${allWithQuote.length > 0 ? (losers / allWithQuote.length) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-bold">{allWithQuote.length > 0 ? Math.round((gainers / allWithQuote.length) * 100) : 0}%</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sector Bar Chart */}
+          {!loading && sectorAvgs.length > 0 && (
+            <div className="rounded-3xl border border-white/10 bg-black/60 backdrop-blur-xl p-6 shadow-2xl mb-8">
+              <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-5">Sector Performance</p>
+              <div className="space-y-3">
+                {sectorAvgs.map(({ name, avg }) => {
+                  const maxAbs = Math.max(...sectorAvgs.map((s) => Math.abs(s.avg)), 1);
+                  const width = Math.min((Math.abs(avg) / maxAbs) * 100, 100);
+                  return (
+                    <div key={name} className="flex items-center gap-3">
+                      <span className="text-base w-6 text-center">{SECTOR_ICONS[name] ?? "📊"}</span>
+                      <span className="text-xs font-bold text-gray-300 w-28 shrink-0">{name}</span>
+                      <div className="flex-1 h-7 rounded-lg bg-white/[0.03] relative overflow-hidden flex items-center">
+                        <div
+                          className={`h-full rounded-lg transition-all duration-700 ease-out ${
+                            avg >= 0
+                              ? "bg-gradient-to-r from-emerald-500/40 to-emerald-400/20"
+                              : "bg-gradient-to-r from-rose-500/40 to-rose-400/20"
+                          }`}
+                          style={{ width: `${width}%` }}
+                        />
+                        <span className={`absolute right-3 text-[11px] font-black ${avg >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                          {avg >= 0 ? "+" : ""}{avg.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-1 mb-8">
+          <div className="flex items-center justify-center gap-1.5 mb-6">
             <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider mr-2">Bearish</span>
             {[
-              "bg-rose-500", "bg-rose-500/80", "bg-rose-600/70", "bg-rose-700/60", "bg-rose-900/40",
-              "bg-emerald-900/40", "bg-emerald-700/60", "bg-emerald-600/70", "bg-emerald-500/80", "bg-emerald-500",
-            ].map((color, i) => (
-              <div key={i} className={`${color} w-6 h-3 ${i === 0 ? "rounded-l-full" : ""} ${i === 9 ? "rounded-r-full" : ""}`} />
+              "from-rose-500/40 to-rose-500/40",
+              "from-rose-500/30 to-rose-500/30",
+              "from-rose-600/25 to-rose-600/25",
+              "from-rose-700/20 to-rose-700/20",
+              "from-rose-900/15 to-rose-900/15",
+              "from-emerald-900/15 to-emerald-900/15",
+              "from-emerald-700/20 to-emerald-700/20",
+              "from-emerald-600/25 to-emerald-600/25",
+              "from-emerald-500/30 to-emerald-500/30",
+              "from-emerald-500/40 to-emerald-500/40",
+            ].map((gradient, i) => (
+              <div key={i} className={`bg-gradient-to-r ${gradient} w-7 h-4 ${i === 0 ? "rounded-l-full" : ""} ${i === 9 ? "rounded-r-full" : ""} border border-white/5`} />
             ))}
             <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider ml-2">Bullish</span>
           </div>
 
-          {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {Array.from({ length: 28 }).map((_, i) => (
-                <div key={i} className="rounded-2xl bg-white/[0.03] border border-white/10 p-5 animate-pulse h-24" />
+          {/* Heatmap Grid */}
+          {loading && stocks.length === 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {Array.from({ length: 27 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-white/[0.02] border border-white/5 p-5 animate-pulse h-28" />
               ))}
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-8">
               {sectorAvgs.map(({ name, avg, items }) => (
                 <div key={name}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <h2 className="text-lg font-black tracking-tight">{name}</h2>
-                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${avg >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-lg">{SECTOR_ICONS[name] ?? "📊"}</span>
+                    <h2 className="text-base font-black tracking-tight">{name}</h2>
+                    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                      avg >= 0 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                    }`}>
+                      {avg >= 0 ? <FiArrowUp size={9} /> : <FiArrowDown size={9} />}
                       {avg >= 0 ? "+" : ""}{avg.toFixed(2)}%
-                    </span>
+                    </div>
+                    <div className="flex-1 h-px bg-white/5" />
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {items.map((stock) => {
                       const dp = stock.quote?.dp ?? 0;
                       const price = stock.quote?.c ?? 0;
+                      const isPositive = dp >= 0;
                       return (
                         <Link
                           key={stock.symbol}
                           href={`/?ticker=${encodeURIComponent(stock.symbol)}`}
-                          className={`group relative rounded-2xl ${getHeatColor(dp)} border border-white/10 p-4 transition-all hover:border-white/30 hover:scale-[1.02]`}
+                          className={`group relative rounded-2xl bg-gradient-to-br ${getHeatBg(dp)} border ${getHeatBorder(dp)} p-4 transition-all duration-300 hover:scale-[1.03] hover:border-white/30 shadow-lg ${getHeatGlow(dp)} backdrop-blur-sm`}
                         >
-                          <p className="text-sm font-black text-white">{stock.symbol}</p>
-                          <p className="text-[10px] text-white/60 truncate">{stock.name}</p>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-sm font-black text-white tracking-tight">{stock.symbol}</p>
+                              <p className="text-[10px] text-white/40 mt-0.5">{stock.name}</p>
+                            </div>
+                            <div className={`rounded-full p-1 ${isPositive ? "bg-emerald-500/15" : "bg-rose-500/15"}`}>
+                              {isPositive ? <FiArrowUp size={10} className="text-emerald-400" /> : <FiArrowDown size={10} className="text-rose-400" />}
+                            </div>
+                          </div>
                           {price > 0 && (
-                            <>
-                              <p className="mt-2 text-lg font-black text-white">${price.toFixed(2)}</p>
-                              <p className={`text-xs font-bold ${dp >= 0 ? "text-white/90" : "text-white/90"}`}>
-                                {dp >= 0 ? "+" : ""}{dp.toFixed(2)}%
+                            <div className="mt-3">
+                              <p className="text-lg font-black text-white/90">${price.toFixed(2)}</p>
+                              <p className={`text-xs font-bold mt-0.5 ${isPositive ? "text-emerald-400" : "text-rose-400"}`}>
+                                {isPositive ? "+" : ""}{dp.toFixed(2)}%
                               </p>
-                            </>
+                            </div>
                           )}
+                          <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-br ${isPositive ? "from-emerald-500/5 to-transparent" : "from-rose-500/5 to-transparent"}`} />
                         </Link>
                       );
                     })}

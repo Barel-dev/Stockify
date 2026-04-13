@@ -42,7 +42,7 @@ import {
   FiFilter,
 } from "react-icons/fi";
 import Image from "next/image";
-import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
@@ -1519,19 +1519,7 @@ function HomeContent() {
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150" />
         </div>
 
-        <Navbar
-          rightSlot={
-            isSignedIn ? (
-              <UserButton />
-            ) : (
-              <SignInButton mode="modal">
-                <button className="rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-xl px-4 py-2 text-xs font-bold tracking-wider uppercase text-blue-300 hover:bg-blue-500/20 transition-all">
-                  Sign In
-                </button>
-              </SignInButton>
-            )
-          }
-        />
+        <Navbar />
 
         {loading && stockData && (
           <div className="fixed top-5 right-5 z-50 rounded-full border border-blue-500/30 bg-black/80 backdrop-blur-xl px-4 py-2 text-xs uppercase tracking-[0.25em] text-blue-300 font-bold shadow-2xl">
