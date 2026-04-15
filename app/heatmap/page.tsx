@@ -213,7 +213,7 @@ export default function HeatmapPage() {
                 <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5">
                   <FiTrendingUp size={10} /> Top Gainer
                 </p>
-                <p className="mt-1.5 text-lg font-black text-emerald-400">{bestStock?.symbol ?? "—"}</p>
+                <p className="mt-1.5 text-lg font-black text-emerald-400">{bestStock?.symbol ?? "None yet"}</p>
                 <p className="text-[10px] text-emerald-400/70 font-bold">
                   {bestStock ? `+${(bestStock.quote?.dp ?? 0).toFixed(2)}%` : ""}
                 </p>
@@ -222,7 +222,7 @@ export default function HeatmapPage() {
                 <p className="text-[9px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5">
                   <FiTrendingDown size={10} /> Top Loser
                 </p>
-                <p className="mt-1.5 text-lg font-black text-rose-400">{worstStock?.symbol ?? "—"}</p>
+                <p className="mt-1.5 text-lg font-black text-rose-400">{worstStock?.symbol ?? "None yet"}</p>
                 <p className="text-[10px] text-rose-400/70 font-bold">
                   {worstStock ? `${(worstStock.quote?.dp ?? 0).toFixed(2)}%` : ""}
                 </p>

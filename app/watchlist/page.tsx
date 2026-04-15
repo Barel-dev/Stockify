@@ -141,12 +141,12 @@ export default function WatchlistPage() {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiTrendingUp size={12} /> Best</p>
-                  <p className="mt-2 text-lg font-black text-emerald-400">{best?.symbol ?? "—"}</p>
+                  <p className="mt-2 text-lg font-black text-emerald-400">{best?.symbol ?? "None yet"}</p>
                   <p className="text-xs text-emerald-400/70">{best ? `+${(best.quote?.dp ?? 0).toFixed(2)}%` : ""}</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                   <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiTrendingDown size={12} /> Worst</p>
-                  <p className="mt-2 text-lg font-black text-rose-400">{worst?.symbol ?? "—"}</p>
+                  <p className="mt-2 text-lg font-black text-rose-400">{worst?.symbol ?? "None yet"}</p>
                   <p className="text-xs text-rose-400/70">{worst ? `${(worst.quote?.dp ?? 0).toFixed(2)}%` : ""}</p>
                 </div>
               </div>

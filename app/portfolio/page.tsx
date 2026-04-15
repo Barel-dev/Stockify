@@ -334,14 +334,14 @@ export default function PortfolioPage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiTrendingUp size={12} /> Best</p>
-                <p className="mt-2 text-lg font-black text-emerald-400">{bestHolding?.symbol ?? "—"}</p>
+                <p className="mt-2 text-lg font-black text-emerald-400">{bestHolding?.symbol ?? "None yet"}</p>
                 {bestHolding && (
                   <p className="text-xs text-emerald-400/70">+{(((bestHolding.quote?.c ?? 0) - bestHolding.buy_price) / bestHolding.buy_price * 100).toFixed(2)}%</p>
                 )}
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/60 backdrop-blur-xl p-5">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold flex items-center gap-1.5"><FiTrendingDown size={12} /> Worst</p>
-                <p className="mt-2 text-lg font-black text-rose-400">{worstHolding?.symbol ?? "—"}</p>
+                <p className="mt-2 text-lg font-black text-rose-400">{worstHolding?.symbol ?? "None yet"}</p>
                 {worstHolding && (
                   <p className="text-xs text-rose-400/70">{(((worstHolding.quote?.c ?? 0) - worstHolding.buy_price) / worstHolding.buy_price * 100).toFixed(2)}%</p>
                 )}

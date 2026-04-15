@@ -192,7 +192,7 @@ export default function EarningsPage() {
                               <div>
                                 <span className="text-gray-500">EPS Est: </span>
                                 <span className="font-bold text-gray-300">
-                                  {e.epsEstimate != null ? `$${e.epsEstimate.toFixed(2)}` : "—"}
+                                  {e.epsEstimate != null ? `$${e.epsEstimate.toFixed(2)}` : "TBD"}
                                 </span>
                               </div>
                               {e.revenueEstimate != null && (

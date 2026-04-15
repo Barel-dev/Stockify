@@ -2,7 +2,6 @@
 
 import {
   Suspense,
-  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -48,7 +47,6 @@ import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
-const HistoricalChart = lazy(() => import("@/components/HistoricalChart"));
 import { useCurrency } from "@/lib/use-currency";
 
 // API calls go through server-side routes in /api/*
@@ -957,68 +955,172 @@ const MARKET_INDICES = [
   { symbol: "IWM", name: "Russell 2K" },
 ];
 
-type MarketQuote = { symbol: string; name: string; c: number; dp: number; d: number };
+const TOP_MOVERS = [
+  "AAPL", "MSFT", "NVDA", "GOOG", "AMZN", "META", "TSLA", "NFLX",
+];
+
+type MarketQuote = { symbol: string; name: string; c: number; dp: number; d: number; prevC?: number };
+
+function PulseDot({ positive }: { positive: boolean }) {
+  return (
+    <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+      <span
+        className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+          positive ? "bg-emerald-400" : "bg-rose-400"
+        }`}
+      />
+      <span
+        className={`relative inline-flex rounded-full h-2 w-2 ${
+          positive ? "bg-emerald-400" : "bg-rose-400"
+        }`}
+      />
+    </span>
+  );
+}
 
 function MarketOverview({ onSelectTicker, currSym, currConv }: { onSelectTicker: (s: string) => void; currSym: string; currConv: (n: number) => number }) {
   const [indices, setIndices] = useState<MarketQuote[]>([]);
+  const [movers, setMovers] = useState<MarketQuote[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Track prices that just changed so we can flash them briefly
+  const [flashing, setFlashing] = useState<Set<string>>(new Set());
+
+  const fetchData = useCallback(async (initial = false) => {
+    try {
+      const idxData = await Promise.all(
+        MARKET_INDICES.map(async (idx) => {
+          const res = await fetch(`/api/quote?symbol=${encodeURIComponent(idx.symbol)}`);
+          if (!res.ok) return null;
+          const q = await res.json();
+          return q.c > 0 ? { symbol: idx.symbol, name: idx.name, c: q.c, dp: q.dp, d: q.d } as MarketQuote : null;
+        })
+      );
+
+      const moverData = await Promise.all(
+        TOP_MOVERS.map(async (symbol) => {
+          const [qr, pr] = await Promise.all([
+            fetch(`/api/quote?symbol=${encodeURIComponent(symbol)}`),
+            fetch(`/api/company?symbol=${encodeURIComponent(symbol)}`),
+          ]);
+          if (!qr.ok) return null;
+          const q = await qr.json();
+          const p = pr.ok ? await pr.json() : {};
+          return q.c > 0 ? { symbol, name: p.name ?? symbol, c: q.c, dp: q.dp, d: q.d } as MarketQuote : null;
+        })
+      );
+
+      const nextIndices = idxData.filter(Boolean) as MarketQuote[];
+      const nextMovers = (moverData.filter(Boolean) as MarketQuote[]).sort((a, b) => Math.abs(b.dp) - Math.abs(a.dp));
+
+      if (!initial) {
+        const changed = new Set<string>();
+        [...nextIndices, ...nextMovers].forEach((q) => {
+          const prev = [...indices, ...movers].find((p) => p.symbol === q.symbol);
+          if (prev && prev.c !== q.c) changed.add(q.symbol);
+        });
+        if (changed.size > 0) {
+          setFlashing(changed);
+          setTimeout(() => setFlashing(new Set()), 900);
+        }
+      }
+
+      setIndices(nextIndices);
+      setMovers(nextMovers);
+    } catch {
+      // ignore
+    } finally {
+      setLoaded(true);
+    }
+  }, [indices, movers]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const idxData = await Promise.all(
-          MARKET_INDICES.map(async (idx) => {
-            const res = await fetch(`/api/quote?symbol=${encodeURIComponent(idx.symbol)}`);
-            if (!res.ok) return null;
-            const q = await res.json();
-            return q.c > 0 ? { symbol: idx.symbol, name: idx.name, c: q.c, dp: q.dp, d: q.d } as MarketQuote : null;
-          })
-        );
-        setIndices(idxData.filter(Boolean) as MarketQuote[]);
-      } catch {
-        // ignore
-      } finally {
-        setLoaded(true);
-      }
-    };
-    fetchData();
+    fetchData(true);
+    const interval = setInterval(() => fetchData(false), 15_000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!loaded) {
     return (
       <div className="mt-16 max-w-5xl mx-auto px-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 animate-pulse h-24" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 animate-pulse h-20" />
           ))}
         </div>
       </div>
     );
   }
 
+  const priceFlashClass = (sym: string) => flashing.has(sym) ? "bg-blue-500/10 ring-1 ring-blue-500/40 transition-all" : "transition-all";
+
   return (
     <div className="mt-16 max-w-5xl mx-auto px-4">
+      {/* Market Indices */}
       {indices.length > 0 && (
         <>
           <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-3 flex items-center gap-2">
-            <FiActivity size={12} /> Market Indices
+            <PulseDot positive />
+            Market Indices · Live
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             {indices.map((idx) => {
               const isPos = idx.dp >= 0;
               return (
                 <button
                   key={idx.symbol}
                   onClick={() => onSelectTicker(idx.symbol)}
-                  className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4 text-left transition-all hover:border-blue-500/30 hover:bg-blue-500/5 group"
+                  className={`rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4 text-left hover:border-blue-500/30 hover:bg-blue-500/5 group ${priceFlashClass(idx.symbol)}`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-black text-gray-400 uppercase tracking-wider group-hover:text-blue-300 transition-colors">{idx.name}</p>
+                    <p className="text-xs font-black text-gray-400 uppercase tracking-wider group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                      <PulseDot positive={isPos} />
+                      {idx.name}
+                    </p>
                     <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${isPos ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
                       {isPos ? "+" : ""}{idx.dp.toFixed(2)}%
                     </span>
                   </div>
                   <p className="text-xl font-black text-white">{currSym}{currConv(idx.c).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Top Movers */}
+      {movers.length > 0 && (
+        <>
+          <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-3 flex items-center gap-2">
+            <FiTrendingUp size={12} /> Top Movers
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {movers.map((m) => {
+              const isPos = m.dp >= 0;
+              return (
+                <button
+                  key={m.symbol}
+                  onClick={() => onSelectTicker(m.symbol)}
+                  className={`rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-4 text-left hover:border-blue-500/30 hover:bg-blue-500/5 group ${priceFlashClass(m.symbol)}`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-sm font-black text-white group-hover:text-blue-300 transition-colors flex items-center gap-1.5">
+                      <PulseDot positive={isPos} />
+                      {m.symbol}
+                    </p>
+                    <div className={`flex items-center gap-1 text-xs font-bold ${isPos ? "text-emerald-400" : "text-rose-400"}`}>
+                      {isPos ? <FiArrowUp size={10} /> : <FiArrowDown size={10} />}
+                      {isPos ? "+" : ""}{m.dp.toFixed(2)}%
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-gray-500 truncate">{m.name}</p>
+                  <p className="text-sm font-bold text-gray-300 mt-1">{currSym}{currConv(m.c).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </button>
               );
             })}
@@ -2137,16 +2239,6 @@ function HomeContent() {
                     <TradingViewChart symbol={ticker} />
                   </SectionCard>
 
-                  <SectionCard
-                    title="Performance"
-                    subtitle="Custom chart with time range selector. Toggle between candlestick and line views."
-                    icon={<FiBarChart2 className="text-indigo-500" />}
-                  >
-                    <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-black/40 backdrop-blur-xl p-5 h-[400px] animate-pulse" />}>
-                      <HistoricalChart symbol={ticker} assetType={analysis.assetType} />
-                    </Suspense>
-                  </SectionCard>
-
                   <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
                     <MetricCard label="Open" value={formatPrice(stockData.o, analysis.assetType)} hint="Today's opening price" accent="blue" />
                     <MetricCard label="Prev Close" value={formatPrice(stockData.pc, analysis.assetType)} hint="Yesterday's closing price" />
@@ -2191,7 +2283,7 @@ function HomeContent() {
                     <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
                       <MetricCard
                         label="RSI (14)"
-                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "—"}
+                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "N/A"}
                         hint={
                           isNumber(analysis.rsi14)
                             ? analysis.rsi14 > 70 ? "Overbought — may pull back" : analysis.rsi14 < 35 ? "Oversold — may bounce" : "Healthy momentum"
@@ -2201,13 +2293,13 @@ function HomeContent() {
                       />
                       <MetricCard
                         label="MACD"
-                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "—"}
+                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "N/A"}
                         hint={isNumber(analysis.macd?.histogram) ? (analysis.macd?.histogram ?? 0) >= 0 ? "Bullish momentum" : "Bearish momentum" : "Needs more data"}
                         accent={isNumber(analysis.macd?.histogram) && (analysis.macd?.histogram ?? 0) >= 0 ? "green" : "rose"}
                       />
-                      <MetricCard label="Volume" value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "—"} hint="vs 20-day average" accent="violet" />
+                      <MetricCard label="Volume" value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "N/A"} hint="vs 20-day average" accent="violet" />
                       <MetricCard label="Volatility" value={formatPercent(analysis.volatility30d)} hint="30-day price swing" accent="blue" />
-                      <MetricCard label="ATR" value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"} hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% daily range` : "Avg daily range"} accent="amber" />
+                      <MetricCard label="ATR" value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "N/A"} hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% daily range` : "Avg daily range"} accent="amber" />
                     </div>
                   )}
 
@@ -2372,12 +2464,12 @@ function HomeContent() {
                       >
                         {earningsData.length > 0 ? (
                           <div className="space-y-3">
-                            {earningsData.slice(0, 3).map((item, index) => {
+                            {earningsData.filter((item) => item.period).slice(0, 3).map((item, index) => {
                               const surpriseValue = isNumber(item.surprisePercent) ? item.surprisePercent : percentDiffFrom(item.actual ?? null, item.estimate ?? null);
                               return (
                                 <div key={`${item.period}-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
                                   <div className="flex items-center justify-between gap-4">
-                                    <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.period || "—"}</span>
+                                    <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.period}</span>
                                     <span className={`text-sm font-black ${isNumber(surpriseValue) && (surpriseValue ?? 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>{formatSignedPercent(surpriseValue)}</span>
                                   </div>
                                   <div className="mt-3 text-sm text-gray-300">
@@ -2399,17 +2491,19 @@ function HomeContent() {
                       >
                         <div className="space-y-4">
                           {[
-                            { label: "Exchange", value: companyData?.exchange || "—" },
-                            { label: "Country", value: companyData?.country || "—" },
-                            { label: "Currency", value: companyData?.currency || "—" },
-                            { label: "Industry", value: companyData?.finnhubIndustry || "—" },
-                            { label: "IPO Date", value: companyData?.ipo || "—" },
-                          ].map((item) => (
-                            <div key={item.label} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
-                              <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.label}</span>
-                              <span className="text-sm font-black text-white text-right break-words">{item.value}</span>
-                            </div>
-                          ))}
+                            { label: "Exchange", value: companyData?.exchange },
+                            { label: "Country", value: companyData?.country },
+                            { label: "Currency", value: companyData?.currency },
+                            { label: "Industry", value: companyData?.finnhubIndustry },
+                            { label: "IPO Date", value: companyData?.ipo },
+                          ]
+                            .filter((item) => item.value)
+                            .map((item) => (
+                              <div key={item.label} className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
+                                <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">{item.label}</span>
+                                <span className="text-sm font-black text-white text-right break-words">{item.value}</span>
+                              </div>
+                            ))}
                         </div>
                         {companyData?.weburl && (
                           <a href={companyData.weburl} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm text-blue-300 hover:text-white transition-colors break-all">
@@ -2523,13 +2617,13 @@ function HomeContent() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                       <MetricCard
                         label="RSI (14)"
-                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "—"}
+                        value={isNumber(analysis.rsi14) ? analysis.rsi14.toFixed(1) : "N/A"}
                         hint="Computed from daily candles"
                         accent="amber"
                       />
                       <MetricCard
                         label="EMA 20"
-                        value={isNumber(analysis.ema20) ? formatPrice(analysis.ema20, analysis.assetType) : "—"}
+                        value={isNumber(analysis.ema20) ? formatPrice(analysis.ema20, analysis.assetType) : "N/A"}
                         hint={
                           isNumber(analysis.ema20)
                             ? `${formatSignedPercent(percentDiffFrom(stockData.c, analysis.ema20))} vs spot`
@@ -2539,40 +2633,40 @@ function HomeContent() {
                       />
                       <MetricCard
                         label="EMA 50"
-                        value={isNumber(analysis.ema50) ? formatPrice(analysis.ema50, analysis.assetType) : "—"}
+                        value={isNumber(analysis.ema50) ? formatPrice(analysis.ema50, analysis.assetType) : "N/A"}
                         hint="Medium trend filter"
                         accent="violet"
                       />
                       <MetricCard
                         label="SMA 20"
-                        value={isNumber(analysis.sma20) ? formatPrice(analysis.sma20, analysis.assetType) : "—"}
+                        value={isNumber(analysis.sma20) ? formatPrice(analysis.sma20, analysis.assetType) : "N/A"}
                         hint="Short moving average"
                       />
                       <MetricCard
                         label="SMA 50"
-                        value={isNumber(analysis.sma50) ? formatPrice(analysis.sma50, analysis.assetType) : "—"}
+                        value={isNumber(analysis.sma50) ? formatPrice(analysis.sma50, analysis.assetType) : "N/A"}
                         hint="Intermediate moving average"
                       />
                       <MetricCard
                         label="SMA 200"
-                        value={isNumber(analysis.sma200) ? formatPrice(analysis.sma200, analysis.assetType) : "—"}
+                        value={isNumber(analysis.sma200) ? formatPrice(analysis.sma200, analysis.assetType) : "N/A"}
                         hint="Long-term trend regime"
                         accent="green"
                       />
                       <MetricCard
                         label="MACD"
-                        value={isNumber(analysis.macd?.macd) ? formatNumber(analysis.macd?.macd, 3) : "—"}
+                        value={isNumber(analysis.macd?.macd) ? formatNumber(analysis.macd?.macd, 3) : "N/A"}
                         hint="12/26 EMA spread"
                         accent="blue"
                       />
                       <MetricCard
                         label="Signal Line"
-                        value={isNumber(analysis.macd?.signal) ? formatNumber(analysis.macd?.signal, 3) : "—"}
+                        value={isNumber(analysis.macd?.signal) ? formatNumber(analysis.macd?.signal, 3) : "N/A"}
                         hint="9-period EMA on MACD"
                       />
                       <MetricCard
                         label="Histogram"
-                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "—"}
+                        value={isNumber(analysis.macd?.histogram) ? formatNumber(analysis.macd?.histogram, 3) : "N/A"}
                         hint={
                           isNumber(analysis.macd?.histogram)
                             ? (analysis.macd?.histogram ?? 0) >= 0
@@ -2588,19 +2682,19 @@ function HomeContent() {
                       />
                       <MetricCard
                         label="ATR (14)"
-                        value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"}
+                        value={isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "N/A"}
                         hint={isNumber(analysis.atrPct) ? `${analysis.atrPct.toFixed(2)}% of spot price` : "Average true range"}
                         accent="amber"
                       />
                       <MetricCard
                         label="Day Position"
-                        value={analysis.dayRangePos !== null ? `${analysis.dayRangePos.toFixed(1)}%` : "—"}
+                        value={analysis.dayRangePos !== null ? `${analysis.dayRangePos.toFixed(1)}%` : "N/A"}
                         hint="Placement inside today's low/high band"
                         accent="blue"
                       />
                       <MetricCard
                         label="52W Position"
-                        value={analysis.week52Pos !== null ? `${analysis.week52Pos.toFixed(1)}%` : "—"}
+                        value={analysis.week52Pos !== null ? `${analysis.week52Pos.toFixed(1)}%` : "N/A"}
                         hint="Placement inside annual range"
                         accent="violet"
                       />
@@ -2611,7 +2705,7 @@ function HomeContent() {
                       />
                       <MetricCard
                         label="Volume Ratio"
-                        value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "—"}
+                        value={isNumber(analysis.volumeRatio) ? `${analysis.volumeRatio.toFixed(2)}x` : "N/A"}
                         hint="Latest volume vs 20D average"
                         accent="green"
                       />
@@ -2654,7 +2748,7 @@ function HomeContent() {
                           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
                             Momentum:{" "}
                             <span className="font-bold text-white">
-                              {isNumber(analysis.rsi14) ? `RSI ${analysis.rsi14.toFixed(0)}` : "—"}
+                              {isNumber(analysis.rsi14) ? `RSI ${analysis.rsi14.toFixed(0)}` : "N/A"}
                             </span>
                             {isNumber(analysis.rsi14)
                               ? analysis.rsi14 > 70
@@ -2668,7 +2762,7 @@ function HomeContent() {
                           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-white/20 hover:bg-white/[0.06]">
                             Daily movement:{" "}
                             <span className="font-bold text-white">
-                              {isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "—"}
+                              {isNumber(analysis.atr14) ? formatPrice(analysis.atr14, analysis.assetType) : "N/A"}
                             </span>
                             {isNumber(analysis.atrPct) ? ` on average (${analysis.atrPct.toFixed(2)}% of price).` : "."}
                           </div>

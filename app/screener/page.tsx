@@ -51,7 +51,7 @@ const SCREENER_UNIVERSE = [
 ];
 
 function fmtMktCap(v: number | null | undefined, sym = "$", conv?: (n: number) => number): string {
-  if (v == null || !Number.isFinite(v)) return "—";
+  if (v == null || !Number.isFinite(v)) return "N/A";
   const c = conv ? conv(v) : v;
   if (c >= 1e6) return `${sym}${(c / 1e6).toFixed(1)}T`;
   if (c >= 1e3) return `${sym}${(c / 1e3).toFixed(1)}B`;
@@ -262,15 +262,15 @@ export default function ScreenerPage() {
                     className="grid grid-cols-2 lg:grid-cols-[0.6fr_1.2fr_0.8fr_0.8fr_0.8fr_0.7fr_0.7fr_0.7fr] gap-2 px-6 py-4 border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors items-center"
                   >
                     <p className="text-sm font-black text-white">{r.symbol}</p>
-                    <p className="text-xs text-gray-400 truncate hidden lg:block">{r.profile?.name ?? "—"}</p>
+                    <p className="text-xs text-gray-400 truncate hidden lg:block">{r.profile?.name ?? "N/A"}</p>
                     <p className="text-sm font-bold text-white text-right">{cSym}{cConv(r.quote?.c ?? 0).toFixed(2)}</p>
                     <p className={`text-sm font-bold text-right ${isPos ? "text-emerald-400" : "text-rose-400"}`}>
                       {isPos ? "+" : ""}{dp.toFixed(2)}%
                     </p>
                     <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{fmtMktCap(r.profile?.marketCapitalization, cSym, cConv)}</p>
-                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.peBasicExclExtraTTM?.toFixed(1) ?? "—"}</p>
-                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.dividendYieldIndicatedAnnual?.toFixed(2) ?? "—"}%</p>
-                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.beta?.toFixed(2) ?? "—"}</p>
+                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.peBasicExclExtraTTM?.toFixed(1) ?? "N/A"}</p>
+                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.dividendYieldIndicatedAnnual?.toFixed(2) ?? "N/A"}%</p>
+                    <p className="text-sm font-bold text-gray-400 text-right hidden lg:block">{r.metrics?.metric?.beta?.toFixed(2) ?? "N/A"}</p>
                   </Link>
                 );
               })}
