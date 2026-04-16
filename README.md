@@ -1,112 +1,131 @@
-<p align="center">
-  <img src="public/favicon.svg" width="100" alt="Stockify Logo" />
-</p>
-
-<h1 align="center">✨ Stockify</h1>
+<h1 align="center">Stockify</h1>
 
 <p align="center">
-  <b>🚀 Real-time Stock, Crypto & Forex Intelligence Dashboard</b><br/>
-  <i>One search. Full market breakdown. Instant insights.</i>
+  <b>Real-time market intelligence dashboard — stocks, crypto, forex.</b><br/>
+  Technicals · Fundamentals · AI analysis · Backtesting · Portfolio benchmarking
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js" alt="Next.js 14" />
-  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-3-38bdf8?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
-  <img src="https://img.shields.io/badge/Clerk-Auth-6C47FF?style=for-the-badge&logo=clerk&logoColor=white" alt="Clerk" />
-  <img src="https://img.shields.io/badge/Supabase-Database-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" alt="Supabase" />
-  <img src="https://img.shields.io/badge/Finnhub-API-22c55e?style=for-the-badge" alt="Finnhub API" />
-  <img src="https://img.shields.io/badge/TradingView-Charts-f97316?style=for-the-badge" alt="TradingView" />
+  <img src="https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs&logoColor=white" alt="Next.js 15" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript 5" />
+  <img src="https://img.shields.io/badge/Tailwind-3-38bdf8?logo=tailwindcss&logoColor=white" alt="Tailwind 3" />
+  <img src="https://img.shields.io/badge/Claude-AI%20Analyst-cc7b5c?logo=anthropic&logoColor=white" alt="Anthropic" />
+  <img src="https://img.shields.io/badge/Vercel-Deployed-black?logo=vercel&logoColor=white" alt="Vercel" />
 </p>
 
 ---
 
-## 🎯 What Is Stockify?
+## What this is
 
-Stockify is a **fullstack market intelligence dashboard** built with Next.js. Enter any ticker — stocks (`AAPL`), crypto (`BTCUSDT`), or forex (`EUR/USD`) — and get a **complete analysis** in seconds.
+A fullstack market dashboard. One search box, any asset — get a complete breakdown in seconds: live quotes, technicals, fundamentals, news, earnings, analyst consensus, AI-generated bull/bear thesis, backtesting, portfolio benchmarking against the S&P 500.
 
-> 💡 No finance jargon. Everything explained in plain language.
+Built as a portfolio project to demonstrate fullstack engineering, real-time data handling, and applied quant/AI.
 
----
+## Live features
 
-## 🔥 Features
+| Area | What it does |
+|---|---|
+| Search & analyze | Stocks, crypto (`BINANCE:BTCUSDT`), forex (`OANDA:EUR_USD`) — autocomplete, recent searches, Cmd+K focus |
+| Live quotes | WebSocket price ticker for stocks. SSE stream pushes indices/movers every 15s |
+| Technicals | RSI, MACD, SMA 20/50/200, EMA 20/50, ATR, volatility, 52-week position — computed client-side from candles |
+| Composite score | Weighted signal (Strong Buy → Strong Sell) combining trend, momentum, sentiment, stability |
+| AI Analyst | Streams a bull/bear thesis from Claude Haiku using quote + metrics + news as context |
+| Backtesting | `/backtest` — run RSI, SMA cross, or MACD strategies over 1Y/2Y/5Y, compare to buy-and-hold, see equity curve + Sharpe + drawdown + trades |
+| Portfolio | Holdings tracker with P&L, allocation, CSV import, and a 6-month chart benchmarking your portfolio against SPY with Sharpe/drawdown |
+| Screener | Filter & sort top 50 S&P stocks by P/E, dividend yield, beta, market cap |
+| Heatmap | Sector-based market heatmap with breadth stats |
+| Watchlist | Drag-and-drop with live WebSocket prices |
+| Compare | Side-by-side analysis of 2–4 tickers with normalized performance chart |
+| Earnings | Weekly earnings calendar with EPS estimates |
+| Alerts | Price alerts with browser + sound notification when triggered |
+| Multi-currency | USD/EUR/GBP/ILS with Finnhub forex rates (falls back to hardcoded approximates) |
+| Export | Per-ticker PDF and portfolio CSV |
+| Auth | Clerk (Google + GitHub), protected routes for watchlist/portfolio |
 
-| | Feature | Description |
-|---|---|---|
-| 📊 | **Live Market Data** | Real-time price, daily change, open/high/low, previous close |
-| 📈 | **Interactive Charts** | Full TradingView charts with drawing tools, indicators & timeframes |
-| 🧠 | **Technical Analysis** | RSI, MACD, SMA, EMA, ATR, volatility, support & resistance — all computed client-side |
-| 🎯 | **Composite Score** | Weighted signal (Strong Buy → Strong Sell) combining trend, momentum, sentiment & stability |
-| 🏦 | **Analyst Ratings** | Wall Street consensus, price targets & recommendation trends |
-| 💰 | **Earnings History** | Quarterly results with actual vs. estimated EPS & surprise % |
-| 📰 | **Latest News** | Recent headlines with direct links to full articles |
-| 🏢 | **Company Profile** | Sector, industry, market cap, IPO date & logo |
-| ⭐ | **Watchlist** | Save tickers with live prices — requires sign-in |
-| 🔐 | **Authentication** | Google & GitHub sign-in via Clerk |
-| 🛡️ | **Server-side API** | All API calls routed through Next.js API routes — API key hidden from client |
-| 🌙 | **Dark Glassmorphism UI** | Sleek animated dark theme with blur effects & glow animations |
-| 📱 | **Fully Responsive** | Desktop, tablet & mobile optimized |
+## Architecture
 
----
+```mermaid
+flowchart LR
+    Browser["Browser<br/>(React 19 + Next.js App Router)"]
+    API["Next.js API routes<br/>(/api/*)"]
+    SSE["SSE stream<br/>/api/market-stream"]
+    Finnhub[("Finnhub<br/>Market data")]
+    Redis[("Upstash Redis<br/>Cache (optional)")]
+    Supabase[("Supabase<br/>Postgres")]
+    Clerk[("Clerk<br/>Auth")]
+    Anthropic[("Anthropic<br/>Claude Haiku")]
 
-## 🖥️ Screenshots
+    Browser -->|HTTPS| API
+    Browser -->|EventSource| SSE
+    Browser -->|JWT| Clerk
+    Browser -->|WebSocket| Finnhub
 
-<p align="center">
-  <i>Search any ticker and get instant market intelligence</i>
-</p>
+    API -->|REST + API key| Finnhub
+    API <-->|cache read/write| Redis
+    API -->|SDK| Anthropic
+    API -->|service key| Supabase
 
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────┐      ┌──────────────────┐      ┌─────────────┐
-│   Browser    │ ───▶ │  Next.js API      │ ───▶ │  Finnhub    │
-│  (React UI)  │      │  Routes (/api/*)  │      │  API        │
-└─────────────┘      └──────────────────┘      └─────────────┘
-       │                      │
-       │                      ▼
-       │              ┌──────────────────┐
-       │              │    Supabase      │
-       │              │   (PostgreSQL)   │
-       └──────────────┤   - Watchlists   │
-        Clerk Auth    └──────────────────┘
+    SSE -->|polls every 15s| Finnhub
 ```
 
-- **Frontend** calls `/api/*` routes (never Finnhub directly)
-- **API routes** proxy requests to Finnhub server-side, hiding the API key
-- **Clerk** handles authentication (Google + GitHub OAuth)
-- **Supabase** stores user watchlists with Row Level Security
+**Key design decisions:**
 
----
+- **Server-only API keys.** Finnhub and Anthropic keys never touch the browser — all calls go through `/api/*` routes. The only client-visible Finnhub touchpoint is the WebSocket, which uses a short-lived token minted by `/api/ws-token`.
+- **Lazy env reads.** `lib/finnhub.ts` reads `process.env.FINNHUB_API_KEY` per request, not at module init. Required for Vercel serverless — module init runs before env vars are injected during some cold starts.
+- **Redis cache is optional.** App works without Upstash; `lib/cache.ts` falls back to a no-op. Cache TTLs are tuned to the cost of staleness: quotes 30s, company 1h, metrics/recommendations 5min.
+- **Batched fetching on expensive pages.** Heatmap and screener fetch in groups of 8 with 1.2s delays to stay under Finnhub's 60 req/min free-tier limit.
+- **SSE instead of polling for market data.** `/api/market-stream` pushes a snapshot every 15s with a 20s heartbeat; the client uses `EventSource`. Single connection, no client-driven cadence.
+- **Client-side technicals.** RSI/MACD/SMA are computed from raw candles in `lib/backtest.ts` and the home dashboard. Keeps the API lean and makes the backtest engine reusable.
+- **Clerk over NextAuth.** Zero-config social providers, drop-in `<UserButton />`, middleware-based route protection. Saves a weekend of integration work.
+- **Supabase over Prisma+Postgres.** Service-role key from server routes only; user_id comes from Clerk's `auth()`. No ORM overhead for three simple tables (watchlist, portfolio, alerts).
 
-## ⚡ Quick Start
+## Tech stack
 
-### Prerequisites
+| Layer | Stack |
+|---|---|
+| Framework | Next.js 15 (App Router), React 19, TypeScript 5 |
+| Styling | Tailwind CSS 3, glassmorphism dark theme, custom CSS animations |
+| Charts | Lightweight Charts v5 (TradingView open-source), TradingView widget |
+| Auth | Clerk v7 (`@clerk/nextjs`) with Google/GitHub OAuth |
+| Database | Supabase (Postgres) — `watchlist`, `portfolio`, `alerts` |
+| Cache | Upstash Redis (optional) |
+| Market data | Finnhub REST + WebSocket |
+| AI | Anthropic Claude Haiku via `@anthropic-ai/sdk` (streaming) |
+| Real-time | Server-Sent Events for market overview, WebSocket for per-stock ticks |
+| Analytics | Vercel Analytics + Speed Insights |
+| Testing | Jest + React Testing Library |
+| Deployment | Vercel |
 
-- **Node.js** 18+
-- A free **Finnhub API key** → [Get one here](https://finnhub.io/register)
-- A free **Clerk account** → [Sign up here](https://clerk.com)
-- A free **Supabase account** → [Sign up here](https://supabase.com)
-
-### 1️⃣ Clone & Install
+## Getting started
 
 ```bash
-git clone https://github.com/your-username/stockify.git
-cd stockify
+git clone https://github.com/Barel-dev/Stockify.git
+cd Stockify
 npm install
+cp .env.example .env.local   # fill in keys
+npm run dev
 ```
 
-### 2️⃣ Set Up Clerk
+Required env:
 
-1. Go to [clerk.com](https://clerk.com) and create a new application
-2. Enable **Google** and **GitHub** as sign-in providers
-3. Copy the **Publishable Key** and **Secret Key**
+```
+FINNHUB_API_KEY=                        # finnhub.io (free tier works)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=      # clerk.com
+CLERK_SECRET_KEY=
+SUPABASE_URL=                           # supabase.com
+SUPABASE_SERVICE_ROLE_KEY=
+```
 
-### 3️⃣ Set Up Supabase
+Optional:
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Open the **SQL Editor** and run:
+```
+ANTHROPIC_API_KEY=                      # enables AI Analyst
+UPSTASH_REDIS_REST_URL=                 # enables response caching
+UPSTASH_REDIS_REST_TOKEN=
+```
+
+Supabase schema:
 
 ```sql
 create table watchlist (
@@ -116,133 +135,84 @@ create table watchlist (
   company_name text not null default '',
   added_at timestamptz default now()
 );
-
-create index idx_watchlist_user_id on watchlist(user_id);
 create unique index idx_watchlist_user_symbol on watchlist(user_id, symbol);
+
+create table portfolio (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null,
+  symbol text not null,
+  shares numeric not null,
+  buy_price numeric not null,
+  company_name text not null default '',
+  created_at timestamptz default now()
+);
+
+create table alerts (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null,
+  symbol text not null,
+  target_price numeric not null,
+  direction text not null check (direction in ('above','below')),
+  triggered boolean default false,
+  created_at timestamptz default now()
+);
 ```
 
-3. Go to **Settings → API** and copy the **URL** and **service_role key**
+## Project layout
 
-### 4️⃣ Configure Environment
+```
+app/
+  page.tsx                # main search + dashboard
+  backtest/page.tsx       # strategy playground
+  compare/page.tsx        # 2-4 ticker comparison
+  watchlist/page.tsx      # live-priced watchlist
+  portfolio/page.tsx      # holdings + SPY benchmark
+  screener/page.tsx       # S&P 500 screener
+  heatmap/page.tsx        # sector heatmap
+  earnings/page.tsx       # earnings calendar
+  stock/[symbol]/page.tsx # SEO route -> redirects to main
+  api/
+    quote, search, company, candles, news, earnings,
+    earnings-calendar, recommendations, metrics,
+    price-target, exchange-rates,
+    watchlist, portfolio, alerts,
+    ws-token,
+    market-stream (SSE),
+    analyze       (streamed AI)
+
+components/
+  Navbar, Background, StockChart, TradingViewChart,
+  AIAnalyst, PortfolioBenchmark,
+  OnboardingTour, KeyboardShortcuts, ErrorBoundary, Skeleton
+
+lib/
+  finnhub       - API wrapper (lazy env read)
+  supabase      - lazy client
+  cache         - Upstash w/ no-op fallback
+  backtest      - indicators + backtest engine
+  currency      - USD/EUR/GBP/ILS
+  use-currency, use-live-prices, use-alert-checker
+  export        - PDF + CSV
+```
+
+## Scripts
 
 ```bash
-cp .env.example .env.local
+npm run dev        # dev server @ localhost:3000
+npm run build      # production build
+npm run lint       # ESLint
+npm run test       # Jest
+npm run test:ci    # Jest --ci --passWithNoTests
 ```
 
-Fill in `.env.local`:
+## Rate-limit notes
 
-```
-FINNHUB_API_KEY=your_key_here
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
-CLERK_SECRET_KEY=sk_...
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-```
+Finnhub free tier is 60 req/min. Stockify mitigates this by:
+- Caching quote/company/metrics responses in Redis with sensible TTLs.
+- Batching fetches on heatmap/screener in groups of 8 with spacing.
+- Sharing the SSE stream so every client shows the same market snapshot.
+- Only calling stock-specific endpoints when the ticker is a stock (`!symbol.includes(":")`).
 
-### 5️⃣ Run
+## License
 
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) 🎉
-
----
-
-## 🧭 How To Use
-
-1. 🔍 **Search** — Type a ticker (`AAPL`, `MSFT`, `BTCUSDT`, `EUR/USD`)
-2. 📋 **Select** — Pick from autocomplete suggestions or press Enter
-3. 📊 **Explore** — Browse the tabs:
-
-| Tab | What You'll Find |
-|---|---|
-| 📊 **Overview** | Chart, price metrics, composite score, key levels, analyst consensus |
-| 📈 **Technical** | RSI, MACD, moving averages, ATR, volatility breakdown |
-| 🏦 **Fundamentals** | Earnings history, company profile, price targets |
-| 📰 **News** | Latest headlines with links to full articles |
-
-4. ⭐ **Save** — Sign in and click "Add to Watchlist" to save tickers
-5. 📋 **Watchlist** — View all saved tickers with live prices at `/watchlist`
-
----
-
-## 🛠️ Tech Stack
-
-| Technology | Purpose |
-|---|---|
-| ⚡ [Next.js 14](https://nextjs.org) | React framework with App Router |
-| 🔷 [TypeScript](https://typescriptlang.org) | Type safety |
-| 🎨 [Tailwind CSS](https://tailwindcss.com) | Utility-first styling |
-| 🔐 [Clerk](https://clerk.com) | Authentication (Google + GitHub OAuth) |
-| 🗄️ [Supabase](https://supabase.com) | PostgreSQL database for watchlists |
-| 🌙 [next-themes](https://github.com/pacocoursey/next-themes) | Dark mode support |
-| 🎭 [react-icons](https://react-icons.github.io/react-icons/) | Icon library |
-| 📡 [Finnhub API](https://finnhub.io) | Market data provider |
-| 📈 [TradingView Widget](https://www.tradingview.com/widget/) | Interactive charting |
-
----
-
-## 📁 Project Structure
-
-```
-stockify/
-├── 📂 app/
-│   ├── layout.tsx              # Root layout + ClerkProvider
-│   ├── page.tsx                # Main dashboard
-│   ├── 📂 watchlist/
-│   │   └── page.tsx            # Watchlist page (protected)
-│   └── 📂 api/
-│       ├── quote/route.ts      # Price quotes
-│       ├── search/route.ts     # Ticker search
-│       ├── candles/route.ts    # Historical candles
-│       ├── company/route.ts    # Company profile
-│       ├── news/route.ts       # Company news
-│       ├── earnings/route.ts   # Earnings data
-│       ├── recommendations/route.ts  # Analyst ratings
-│       ├── metrics/route.ts    # Financial metrics
-│       ├── price-target/route.ts     # Price targets
-│       └── watchlist/route.ts  # Watchlist CRUD
-├── 📂 lib/
-│   ├── finnhub.ts              # Server-side Finnhub client
-│   └── supabase.ts             # Server-side Supabase client
-├── middleware.ts               # Clerk auth middleware
-├── 📂 public/
-│   └── favicon.svg             # App icon
-├── 📂 styles/
-│   └── globals.css             # Tailwind + custom animations
-├── .env.example                # Env vars template
-├── next.config.js              # Next.js config
-├── tailwind.config.ts          # Tailwind config
-├── tsconfig.json               # TypeScript config
-└── package.json                # Dependencies
-```
-
----
-
-## 📜 Scripts
-
-| Command | Description |
-|---|---|
-| `npm run dev` | 🚀 Start development server |
-| `npm run build` | 📦 Build for production |
-| `npm start` | ▶️ Start production server |
-| `npm run lint` | 🔍 Run ESLint |
-
----
-
-## ⚠️ API Rate Limits
-
-Stockify uses the **Finnhub free tier** (60 calls/min). The app is designed to stay within limits, but rapid searching may temporarily hit the cap. [Paid plans](https://finnhub.io/pricing) offer higher limits.
-
----
-
-## 📄 License
-
-ISC
-
----
-
-<p align="center">
-  Made with ❤️ by <b>Barel</b>
-</p>
+ISC.

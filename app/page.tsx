@@ -47,6 +47,7 @@ import { exportToPDF, exportToCSV } from "@/lib/export";
 import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
+import AIAnalyst from "@/components/AIAnalyst";
 import { useCurrency } from "@/lib/use-currency";
 
 // API calls go through server-side routes in /api/*
@@ -982,62 +983,49 @@ function MarketOverview({ onSelectTicker, currSym, currConv }: { onSelectTicker:
   const [indices, setIndices] = useState<MarketQuote[]>([]);
   const [movers, setMovers] = useState<MarketQuote[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   // Track prices that just changed so we can flash them briefly
   const [flashing, setFlashing] = useState<Set<string>>(new Set());
-
-  const fetchData = useCallback(async (initial = false) => {
-    try {
-      const idxData = await Promise.all(
-        MARKET_INDICES.map(async (idx) => {
-          const res = await fetch(`/api/quote?symbol=${encodeURIComponent(idx.symbol)}`);
-          if (!res.ok) return null;
-          const q = await res.json();
-          return q.c > 0 ? { symbol: idx.symbol, name: idx.name, c: q.c, dp: q.dp, d: q.d } as MarketQuote : null;
-        })
-      );
-
-      const moverData = await Promise.all(
-        TOP_MOVERS.map(async (symbol) => {
-          const [qr, pr] = await Promise.all([
-            fetch(`/api/quote?symbol=${encodeURIComponent(symbol)}`),
-            fetch(`/api/company?symbol=${encodeURIComponent(symbol)}`),
-          ]);
-          if (!qr.ok) return null;
-          const q = await qr.json();
-          const p = pr.ok ? await pr.json() : {};
-          return q.c > 0 ? { symbol, name: p.name ?? symbol, c: q.c, dp: q.dp, d: q.d } as MarketQuote : null;
-        })
-      );
-
-      const nextIndices = idxData.filter(Boolean) as MarketQuote[];
-      const nextMovers = (moverData.filter(Boolean) as MarketQuote[]).sort((a, b) => Math.abs(b.dp) - Math.abs(a.dp));
-
-      if (!initial) {
-        const changed = new Set<string>();
-        [...nextIndices, ...nextMovers].forEach((q) => {
-          const prev = [...indices, ...movers].find((p) => p.symbol === q.symbol);
-          if (prev && prev.c !== q.c) changed.add(q.symbol);
-        });
-        if (changed.size > 0) {
-          setFlashing(changed);
-          setTimeout(() => setFlashing(new Set()), 900);
-        }
-      }
-
-      setIndices(nextIndices);
-      setMovers(nextMovers);
-    } catch {
-      // ignore
-    } finally {
-      setLoaded(true);
-    }
-  }, [indices, movers]);
+  const lastSnapshot = useRef<{ indices: MarketQuote[]; movers: MarketQuote[] }>({ indices: [], movers: [] });
 
   useEffect(() => {
-    fetchData(true);
-    const interval = setInterval(() => fetchData(false), 15_000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let es: EventSource | null = null;
+    let flashTimer: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+      es = new EventSource("/api/market-stream");
+      es.onopen = () => setStreaming(true);
+      es.onerror = () => setStreaming(false);
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as { indices: MarketQuote[]; movers: MarketQuote[] };
+          const prev = lastSnapshot.current;
+          const changed = new Set<string>();
+          [...data.indices, ...data.movers].forEach((q) => {
+            const prior = [...prev.indices, ...prev.movers].find((p) => p.symbol === q.symbol);
+            if (prior && prior.c !== q.c) changed.add(q.symbol);
+          });
+          if (changed.size > 0) {
+            setFlashing(changed);
+            if (flashTimer) clearTimeout(flashTimer);
+            flashTimer = setTimeout(() => setFlashing(new Set()), 900);
+          }
+          lastSnapshot.current = data;
+          setIndices(data.indices);
+          setMovers(data.movers);
+          setLoaded(true);
+        } catch {
+          // ignore malformed message
+        }
+      };
+    } catch {
+      setStreaming(false);
+    }
+
+    return () => {
+      if (es) es.close();
+      if (flashTimer) clearTimeout(flashTimer);
+    };
   }, []);
 
   if (!loaded) {
@@ -1066,7 +1054,7 @@ function MarketOverview({ onSelectTicker, currSym, currConv }: { onSelectTicker:
         <>
           <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500 font-bold mb-3 flex items-center gap-2">
             <PulseDot positive />
-            Market Indices · Live
+            Market Indices · {streaming ? "Live" : "Loading"}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
             {indices.map((idx) => {
@@ -1861,6 +1849,25 @@ function HomeContent() {
             )}
 
             {!stockData && (
+              <div className="mt-12 flex justify-center items-center gap-5 sm:gap-8 flex-wrap text-[10px] font-bold text-gray-500 uppercase tracking-[0.3em]">
+                {[
+                  { label: "NYSE", glow: "bg-orange-400", dot: "bg-orange-500" },
+                  { label: "NASDAQ", glow: "bg-green-400", dot: "bg-green-500" },
+                  { label: "CRYPTO", glow: "bg-blue-400", dot: "bg-blue-500" },
+                  { label: "FX", glow: "bg-violet-400", dot: "bg-violet-500" },
+                ].map((m) => (
+                  <div key={m.label} className="flex items-center gap-2.5">
+                    <span className="relative flex h-3 w-3">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${m.glow}`} />
+                      <span className={`relative inline-flex rounded-full h-3 w-3 ${m.dot}`} />
+                    </span>
+                    {m.label}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!stockData && (
               <MarketOverview
                 onSelectTicker={(s) => { setTicker(s); handleSearch(s); }}
                 currSym={cSym}
@@ -2238,6 +2245,8 @@ function HomeContent() {
                   >
                     <TradingViewChart symbol={ticker} />
                   </SectionCard>
+
+                  {!ticker.includes(":") && <AIAnalyst symbol={ticker} />}
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
                     <MetricCard label="Open" value={formatPrice(stockData.o, analysis.assetType)} hint="Today's opening price" accent="blue" />

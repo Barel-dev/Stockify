@@ -12,6 +12,7 @@ import {
   FiFilter,
   FiGrid,
   FiCalendar,
+  FiTarget,
 } from "react-icons/fi";
 import { CURRENCIES, getSavedCurrency, saveCurrency, type Currency } from "@/lib/currency";
 
@@ -23,6 +24,7 @@ const NAV_LINKS = [
   { href: "/screener", label: "Screener", icon: FiFilter },
   { href: "/heatmap", label: "Heatmap", icon: FiGrid },
   { href: "/earnings", label: "Earnings", icon: FiCalendar },
+  { href: "/backtest", label: "Backtest", icon: FiTarget },
 ];
 
 function LogoSVG() {

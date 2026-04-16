@@ -9,7 +9,8 @@ Real-time stock, crypto, and forex market intelligence dashboard.
 - **Database:** Supabase PostgreSQL (lazy init via `lib/supabase.ts`)
 - **Market Data:** Finnhub API (free tier, 60 req/min limit)
 - **Charts:** Lightweight Charts v5 (TradingView open-source) + TradingView widgets
-- **Styling:** Tailwind CSS 3 — dark/light glassmorphism theme
+- **AI:** Anthropic Claude Haiku via `@anthropic-ai/sdk` (streaming)
+- **Styling:** Tailwind CSS 3 — dark glassmorphism theme
 - **Caching:** Upstash Redis (optional, graceful fallback)
 - **Analytics:** Vercel Analytics + Speed Insights
 - **Testing:** Jest + React Testing Library
@@ -21,9 +22,10 @@ Real-time stock, crypto, and forex market intelligence dashboard.
 app/
   page.tsx              # Main search & analysis dashboard with market overview
   stock/[symbol]/       # SEO-friendly stock detail route (redirects to main with ticker)
+  backtest/page.tsx      # Strategy backtesting playground (RSI, SMA cross, MACD)
   compare/page.tsx      # Side-by-side ticker comparison (up to 4 tickers)
   watchlist/page.tsx     # Saved tickers with live WebSocket prices + drag-and-drop
-  portfolio/page.tsx     # Holdings tracker with P&L, allocation chart, CSV import
+  portfolio/page.tsx     # Holdings tracker with P&L, allocation chart, CSV import, SPY benchmark
   screener/page.tsx      # Filter & sort top 50 S&P 500 stocks (with presets)
   heatmap/page.tsx       # Sector heatmap with market overview
   earnings/page.tsx      # Weekly earnings calendar with EPS estimates
@@ -41,6 +43,8 @@ app/
     metrics/             # GET /api/metrics?symbol=X (cached 5min)
     price-target/        # GET /api/price-target?symbol=X
     exchange-rates/      # GET /api/exchange-rates (USD/EUR/GBP/ILS)
+    analyze/             # POST /api/analyze — streaming AI bull/bear thesis (Claude Haiku)
+    market-stream/       # GET /api/market-stream — SSE for indices + top movers (15s push)
     watchlist/           # GET/POST/DELETE — Clerk auth + Supabase
     portfolio/           # GET/POST/DELETE — Clerk auth + Supabase
     alerts/              # GET/POST/DELETE — Clerk auth + Supabase
@@ -48,7 +52,9 @@ app/
 
 components/
   Navbar.tsx             # Shared nav with logo, links, auth, currency selector, theme toggle
-  Background.tsx         # Shared background with mouse glow, animated blobs, theme support
+  Background.tsx         # Shared background with mouse glow, animated blobs
+  AIAnalyst.tsx          # Streaming AI bull/bear thesis card (Claude Haiku)
+  PortfolioBenchmark.tsx # Portfolio vs S&P 500 normalized chart with Sharpe/drawdown
   HistoricalChart.tsx    # Custom candlestick/line chart with 1D-5Y time ranges (lazy loaded)
   StockChart.tsx         # Interactive candlestick/line chart (Lightweight Charts v5)
   ErrorBoundary.tsx      # React error boundary with retry
@@ -60,6 +66,7 @@ lib/
   finnhub.ts             # Finnhub API wrapper (reads env at request time, not module init)
   supabase.ts            # Lazy Supabase client init
   cache.ts               # Upstash Redis caching layer (graceful fallback if not configured)
+  backtest.ts            # Technical indicators (RSI/MACD/SMA) + backtest engine
   currency.ts            # Multi-currency support (USD/EUR/GBP/ILS) + exchange rates
   use-currency.ts        # React hook for currency state + conversion across pages
   use-theme.ts           # Dark/light theme hook with localStorage persistence
@@ -90,9 +97,10 @@ SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Optional (for Redis caching):
+Optional:
 ```
-UPSTASH_REDIS_REST_URL=
+ANTHROPIC_API_KEY=                      # enables AI Analyst
+UPSTASH_REDIS_REST_URL=                 # enables response caching
 UPSTASH_REDIS_REST_TOKEN=
 ```
 
@@ -152,3 +160,28 @@ Supabase tables: `watchlist`, `portfolio`, `alerts` — all keyed by `user_id` (
 - Head-to-head comparison table only shown for 2-ticker comparisons
 - Performance chart and normalized % comparison for 2-ticker mode
 - Adaptive grid layout based on number of tickers
+
+### AI Analyst
+- `components/AIAnalyst.tsx` streams a bull/bear thesis from Claude Haiku
+- `/api/analyze` POST route sends quote + metrics + news as context, streams response via `ReadableStream`
+- Only shown for stock tickers (not crypto/forex)
+- Requires `ANTHROPIC_API_KEY` env var; gracefully hidden if not set
+
+### Market Stream (SSE)
+- `/api/market-stream` pushes index + mover snapshots every 15s via Server-Sent Events
+- Main dashboard `MarketOverview` component connects via `EventSource` instead of client-side polling
+- Heartbeat comment every 20s to keep proxies from closing the connection
+- Reduces client-side API calls from ~12/min to 0 (server does the fetching)
+
+### Backtesting
+- `/backtest` page with RSI, SMA cross, MACD, and buy-and-hold strategies
+- `lib/backtest.ts` computes indicators and runs simulated trades on daily candles
+- Equity curve chart (strategy vs buy-and-hold) with Lightweight Charts
+- Stats: total return, Sharpe, max drawdown, win rate, avg trade P&L
+- Configurable symbol, strategy, period (1Y/2Y/5Y), and starting capital
+
+### Portfolio Benchmark
+- `components/PortfolioBenchmark.tsx` renders a normalized portfolio vs SPY chart
+- Computes annualized Sharpe, max drawdown, volatility, and alpha
+- Uses 6 months of daily candles, forward-fills missing closes
+- Only benchmarks stock holdings (filters out crypto/forex)

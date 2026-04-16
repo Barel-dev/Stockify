@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
+import PortfolioBenchmark from "@/components/PortfolioBenchmark";
 
 type SuggestionItem = { symbol: string; description: string };
 type FinnhubSearchResult = { symbol: string; description?: string; displaySymbol?: string };
@@ -347,6 +348,15 @@ export default function PortfolioPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Portfolio vs S&P 500 */}
+          {!loading && withPrice.length > 0 && (
+            <PortfolioBenchmark
+              holdings={withPrice
+                .filter((h) => !h.symbol.includes(":"))
+                .map((h) => ({ symbol: h.symbol, shares: h.shares, buy_price: h.buy_price }))}
+            />
           )}
 
           {/* Performance Charts */}
