@@ -25,3 +25,11 @@ Thumbs.db
 # Build artifacts
 /build
 /dist
+tsconfig.tsbuildinfo
+
+# Auto-generated
+next-env.d.ts
+
+# Claude Code
+CLAUDE.md
+.claude
