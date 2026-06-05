@@ -24,7 +24,6 @@ export default function Background({ children }: { children: React.ReactNode }) 
         />
         <div className="absolute top-[5%] left-[10%] w-[500px] h-[500px] rounded-full blur-[120px] force-animate-blob bg-blue-600/25" />
         <div className="absolute bottom-[5%] right-[10%] w-[450px] h-[450px] rounded-full blur-[120px] force-animate-blob force-delay bg-indigo-600/25" />
-        <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-[0.04] brightness-100 contrast-100" />
       </div>
       {children}
     </div>

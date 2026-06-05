@@ -1,6 +1,7 @@
-// Bumped to v2 to purge any v1 entries that may have cached authenticated
-// API responses (e.g. /api/watchlist, /api/portfolio).
-const CACHE_NAME = "stockify-v2";
+// v3: navigations are now network-first so a new deploy shows immediately
+// instead of serving a stale cached page. Bumping the name purges old caches
+// (including any previously-cached HTML).
+const CACHE_NAME = "stockify-v3";
 // Only precache public, static pages. /watchlist is auth-gated and would cache
 // a sign-in redirect, so it is intentionally excluded.
 const PRECACHE = ["/", "/compare"];
@@ -21,6 +22,14 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+function cachePut(request, response) {
+  if (response.ok && response.type === "basic") {
+    const clone = response.clone();
+    caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+  }
+  return response;
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -37,20 +46,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for same-origin static assets only.
-  if (url.origin === self.location.origin) {
+  if (url.origin !== self.location.origin) return;
+
+  // Page navigations (HTML): network-first so the latest deploy always wins,
+  // falling back to cache only when offline.
+  if (request.mode === "navigate") {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((response) => {
-          // Cache successful, basic (same-origin) responses for offline use.
-          if (response.ok && response.type === "basic") {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        });
-      })
+      fetch(request).then((res) => cachePut(request, res)).catch(() => caches.match(request))
     );
+    return;
   }
+
+  // Static assets (hashed _next chunks, fonts, images): cache-first for speed.
+  event.respondWith(
+    caches.match(request).then((cached) => cached || fetch(request).then((res) => cachePut(request, res)))
+  );
 });
