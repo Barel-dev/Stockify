@@ -99,7 +99,7 @@ export default function Navbar() {
         {/* Auth + Currency */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Currency selector */}
-          <div className="relative hidden sm:block">
+          <div className="relative block">
             <button
               onClick={() => setShowCurrencyMenu((v) => !v)}
               className="rounded-full border border-white/10 bg-white/[0.05] backdrop-blur-xl px-3 py-2 text-[10px] font-bold tracking-wider uppercase text-gray-400 hover:text-white hover:border-white/20 transition-all"

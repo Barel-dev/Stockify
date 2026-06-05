@@ -21,8 +21,8 @@ export default function KeyboardShortcuts() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 
-      // Cmd+K or / to focus search (only on main page)
-      if ((e.metaKey && e.key === "k") || (e.key === "/" && !e.metaKey && !e.ctrlKey)) {
+      // Cmd/Ctrl+K or / to focus search (only on main page)
+      if (((e.metaKey || e.ctrlKey) && e.key === "k") || (e.key === "/" && !e.metaKey && !e.ctrlKey)) {
         e.preventDefault();
         const searchInput = document.querySelector<HTMLInputElement>('input[placeholder*="Search"]');
         if (searchInput) {

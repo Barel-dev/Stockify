@@ -27,6 +27,32 @@ type WatchlistCardData = WatchlistItem & {
   quote: QuoteData | null;
 };
 
+const ORDER_KEY = "stockify-watchlist-order";
+
+// Reorder a freshly-loaded list to match the order saved on the last drag.
+function applySavedOrder<T extends { symbol: string }>(list: T[]): T[] {
+  if (typeof window === "undefined") return list;
+  try {
+    const saved: string[] = JSON.parse(localStorage.getItem(ORDER_KEY) || "[]");
+    if (!Array.isArray(saved) || saved.length === 0) return list;
+    const rank = (s: string) => {
+      const i = saved.indexOf(s);
+      return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+    };
+    return [...list].sort((a, b) => rank(a.symbol) - rank(b.symbol));
+  } catch {
+    return list;
+  }
+}
+
+function saveOrder(symbols: string[]) {
+  try {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(symbols));
+  } catch {
+    /* ignore */
+  }
+}
+
 export default function WatchlistPage() {
   const { isSignedIn } = useUser();
   const { symbol: cSym, convert: cConv } = useCurrency();
@@ -58,7 +84,7 @@ export default function WatchlistPage() {
           })
         );
 
-        setItems(withQuotes);
+        setItems(applySavedOrder(withQuotes));
       } catch {
         setItems([]);
       } finally {
@@ -93,6 +119,7 @@ export default function WatchlistPage() {
       const updated = [...prev];
       const [moved] = updated.splice(from, 1);
       updated.splice(to, 0, moved);
+      saveOrder(updated.map((i) => i.symbol));
       return updated;
     });
   }, []);

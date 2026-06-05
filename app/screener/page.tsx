@@ -71,6 +71,8 @@ export default function ScreenerPage() {
   const [maxPrice, setMaxPrice] = useState("");
   const [sector, setSector] = useState("All");
   const [minMktCap, setMinMktCap] = useState("All");
+  // Optional extra predicate applied by a preset (e.g. dividend yield > 2%).
+  const [extraFilter, setExtraFilter] = useState<((r: ScreenerResult) => boolean) | null>(null);
 
   const scan = async () => {
     setLoading(true);
@@ -105,6 +107,7 @@ export default function ScreenerPage() {
 
   // Apply filters
   const filtered = results.filter((r) => {
+    if (extraFilter && !extraFilter(r)) return false;
     const price = r.quote?.c ?? 0;
     if (minPrice && price < Number(minPrice)) return false;
     if (maxPrice && price > Number(maxPrice)) return false;
@@ -173,6 +176,7 @@ export default function ScreenerPage() {
                   setMinMktCap(preset.cap);
                   setSortKey(preset.sort);
                   setSortAsc(preset.sort === "pe" || preset.sort === "beta");
+                  setExtraFilter(() => preset.filter ?? null);
                   if (results.length === 0) scan();
                 }}
                 className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 hover:border-blue-500/30 hover:text-blue-300 hover:bg-blue-500/5 transition-all"
@@ -210,7 +214,7 @@ export default function ScreenerPage() {
                 </select>
               </div>
               <button
-                onClick={scan}
+                onClick={() => { setExtraFilter(null); scan(); }}
                 disabled={loading}
                 className="rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2.5 text-sm font-black uppercase tracking-wider text-white transition-all shadow-lg shadow-blue-600/20"
               >

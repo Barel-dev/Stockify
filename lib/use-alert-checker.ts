@@ -69,9 +69,10 @@ export function useAlertChecker(alerts: AlertItem[], isSignedIn: boolean) {
                 audio.play().catch(() => {});
               } catch {}
 
-              // Mark as triggered in API
+              // Mark as triggered in API (keeps the alert visible as "Triggered"
+              // instead of deleting it).
               fetch("/api/alerts", {
-                method: "DELETE",
+                method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: alert.id }),
               }).catch(() => {});

@@ -254,13 +254,6 @@ const getAssetType = (symbol: string): AssetType => {
   return "stock";
 };
 
-const getCandleEndpoint = (symbol: string) => {
-  const assetType = getAssetType(symbol);
-  if (assetType === "crypto") return "crypto/candle";
-  if (assetType === "forex") return "forex/candle";
-  return "stock/candle";
-};
-
 const getPriceDigits = (value: number, assetType: AssetType) => {
   if (assetType === "forex") return 4;
   if (assetType === "crypto") {
@@ -2080,7 +2073,7 @@ function HomeContent() {
                         )}
                         {isNumber(companyData?.marketCapitalization) && companyData!.marketCapitalization! > 0 && (
                           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300 font-bold">
-                            Mkt Cap {formatCompactNumber(companyData!.marketCapitalization! * 1e6, "$")}
+                            Mkt Cap {formatCompactNumber(cConv(companyData!.marketCapitalization! * 1e6), cSym)}
                           </span>
                         )}
                       </div>

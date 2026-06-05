@@ -164,7 +164,15 @@ export function exportToCSV(data: ExportData) {
     if (data.priceTarget.high) rows.push(["Target High", data.priceTarget.high]);
   }
 
-  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+  // Escape for CSV: double embedded quotes, and neutralize spreadsheet formula
+  // injection (values starting with =, +, @) by prefixing a single quote.
+  const escapeCsv = (cell: string) => {
+    let s = String(cell ?? "");
+    if (/^[=+@]/.test(s)) s = `'${s}`;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
+
+  const csv = rows.map((r) => r.map(escapeCsv).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

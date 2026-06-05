@@ -145,9 +145,18 @@ function computeSignals(candles: Candle[], strategy: Strategy): Signal[] {
       const s = slow[i];
       return f != null && s != null ? f - s : null;
     });
-    // Signal line: 9-period EMA of macdLine (ignoring nulls by filtering)
-    const validMacd: number[] = macdLine.map((v) => v ?? 0);
-    const signal = ema(validMacd, 9);
+    // Signal line: 9-period EMA of the MACD line. Compute over the valid
+    // (post-warmup) values only, then map back to original indices so the early
+    // signal isn't biased by zero-filled placeholders.
+    const firstValid = macdLine.findIndex((v) => v != null);
+    const signal: (number | null)[] = new Array(closes.length).fill(null);
+    if (firstValid !== -1) {
+      const compact = macdLine.slice(firstValid).map((v) => v as number);
+      const compactSignal = ema(compact, 9);
+      for (let i = 0; i < compactSignal.length; i++) {
+        signal[firstValid + i] = compactSignal[i];
+      }
+    }
 
     const out: Signal[] = [];
     for (let i = 0; i < closes.length; i++) {
