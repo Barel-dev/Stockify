@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { finnhubFetch } from "@/lib/finnhub";
+import { rateLimit } from "@/lib/cache";
 
 type Quote = { c: number; d: number; dp: number; h: number; l: number; o: number; pc: number };
 type Company = { name?: string; finnhubIndustry?: string; marketCapitalization?: number; country?: string };
@@ -9,6 +10,18 @@ type NewsItem = { headline?: string; summary?: string; datetime?: number };
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Lightweight config probe used by the AIAnalyst component to decide whether to
+ * render. Avoids the old health-check that POSTed a dummy symbol and triggered
+ * four wasted Finnhub calls on every page view.
+ */
+export async function GET() {
+  return new Response(
+    JSON.stringify({ configured: Boolean(process.env.ANTHROPIC_API_KEY) }),
+    { headers: { "Content-Type": "application/json" } }
+  );
+}
 
 export async function POST(req: NextRequest) {
   const { symbol } = (await req.json().catch(() => ({}))) as { symbol?: string };
@@ -21,6 +34,17 @@ export async function POST(req: NextRequest) {
     return new Response(
       JSON.stringify({ error: "AI analysis is not configured. Set ANTHROPIC_API_KEY in environment." }),
       { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // Throttle to protect against abuse of the paid Anthropic endpoint.
+  // Best-effort: no-ops if Upstash Redis isn't configured.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  const allowed = await rateLimit(`analyze:${ip}`, 20, 3600);
+  if (!allowed) {
+    return new Response(
+      JSON.stringify({ error: "Rate limit reached. Please try again later." }),
+      { status: 429, headers: { "Content-Type": "application/json" } }
     );
   }
 

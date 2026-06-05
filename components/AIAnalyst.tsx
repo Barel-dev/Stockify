@@ -75,17 +75,16 @@ export default function AIAnalyst({ symbol }: Props) {
   const checkedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Check on mount whether the API is configured
+  // Check on mount whether the API is configured (cheap GET — no data fetching)
   useEffect(() => {
     if (checkedRef.current) return;
     checkedRef.current = true;
-    fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ symbol: "__check__" }),
-    }).then((res) => {
-      if (res.status === 503) setHidden(true);
-    }).catch(() => {});
+    fetch("/api/analyze")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data?.configured) setHidden(true);
+      })
+      .catch(() => {});
   }, []);
 
   const run = async () => {

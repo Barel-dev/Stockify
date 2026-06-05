@@ -14,9 +14,27 @@ type YahooChart = {
   };
 };
 
+/**
+ * Convert a Finnhub-style symbol to a Yahoo Finance ticker so crypto/forex
+ * fall back correctly (e.g. BINANCE:BTCUSDT → BTC-USD, OANDA:EUR_USD → EURUSD=X).
+ */
+function toYahooSymbol(symbol: string): string {
+  if (symbol.startsWith("BINANCE:")) {
+    const pair = symbol.replace("BINANCE:", "");
+    const base = pair.replace(/USDT$/, "").replace(/USD$/, "");
+    return `${base}-USD`;
+  }
+  if (symbol.startsWith("OANDA:")) {
+    const pair = symbol.replace("OANDA:", "").replace("_", "");
+    return `${pair}=X`;
+  }
+  return symbol;
+}
+
 async function yahooFallback(symbol: string) {
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`;
+    const yahooSymbol = toYahooSymbol(symbol);
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1d&interval=1d`;
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
       cache: "no-store",

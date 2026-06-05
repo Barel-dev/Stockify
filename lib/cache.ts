@@ -49,3 +49,22 @@ export async function cachedFetch<T>(
 
   return data;
 }
+
+/**
+ * Best-effort fixed-window rate limiter backed by Redis.
+ * Returns true if the request is allowed, false if the limit is exceeded.
+ * If Redis is not configured, always allows (no limiting in local/dev).
+ */
+export async function rateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return true;
+
+  try {
+    const count = await r.incr(key);
+    if (count === 1) await r.expire(key, windowSec);
+    return count <= limit;
+  } catch {
+    // Redis unavailable — fail open rather than blocking users.
+    return true;
+  }
+}

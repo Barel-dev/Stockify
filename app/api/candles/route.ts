@@ -62,6 +62,7 @@ type YahooChart = {
           high: (number | null)[];
           low: (number | null)[];
           close: (number | null)[];
+          volume?: (number | null)[];
         }[];
       };
     }[];
@@ -111,6 +112,7 @@ export async function GET(req: NextRequest) {
     const h: number[] = [];
     const l: number[] = [];
     const c: number[] = [];
+    const v: number[] = [];
 
     for (let i = 0; i < timestamps.length; i++) {
       if (
@@ -124,6 +126,7 @@ export async function GET(req: NextRequest) {
         h.push(quote.high[i]!);
         l.push(quote.low[i]!);
         c.push(quote.close[i]!);
+        v.push(quote.volume?.[i] ?? 0);
       }
     }
 
@@ -132,7 +135,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Return in Finnhub-compatible format
-    return NextResponse.json({ s: "ok", t, o, h, l, c });
+    return NextResponse.json({ s: "ok", t, o, h, l, c, v });
   } catch {
     return NextResponse.json({ s: "no_data" });
   }
