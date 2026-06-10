@@ -91,8 +91,10 @@ export default function EarningsPage() {
       date: dateStr,
       dayName: WEEKDAYS[i],
       entries: (byDate.get(dateStr) ?? []).sort((a, b) => {
-        const order: Record<string, number> = { bmo: 0, dmh: 1, amc: 2 };
-        return (order[a.hour] ?? 1) - (order[b.hour] ?? 1);
+        // Biggest revenue first (actual when reported, estimate otherwise);
+        // entries with no revenue data sink to the bottom.
+        const rev = (e: EarningsEntry) => e.revenueActual ?? e.revenueEstimate ?? -1;
+        return rev(b) - rev(a);
       }),
     });
   }
