@@ -5,6 +5,7 @@ import { FiCalendar, FiChevronLeft, FiChevronRight, FiSun, FiMoon, FiClock } fro
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
+import EarningsPreview from "@/components/EarningsPreview";
 
 type EarningsEntry = {
   date: string;
@@ -132,6 +133,9 @@ export default function EarningsPage() {
               <FiChevronRight size={18} />
             </button>
           </div>
+
+          {/* key resets the panel when navigating between weeks */}
+          <EarningsPreview key={week.from} from={week.from} to={week.to} />
 
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
