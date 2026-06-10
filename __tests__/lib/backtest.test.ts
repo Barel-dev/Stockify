@@ -124,4 +124,74 @@ describe("runBacktest", () => {
       expect(finalEquity).toBeCloseTo(100_000, 0);
     });
   });
+
+  describe("EMA cross strategy", () => {
+    it("returns valid result with enough data", () => {
+      const closes = Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i * 0.2) * 10 + i * 0.3);
+      const result = runBacktest(makeCandles(closes), "ema_cross");
+      expect(result.strategy).toBe("ema_cross");
+      expect(result.equityCurve.length).toBe(60);
+    });
+  });
+
+  describe("Bollinger strategy", () => {
+    it("returns valid result with enough data", () => {
+      const closes = Array.from({ length: 60 }, (_, i) => 100 + Math.sin(i * 0.7) * 12);
+      const result = runBacktest(makeCandles(closes), "bollinger");
+      expect(result.strategy).toBe("bollinger");
+      expect(result.equityCurve.length).toBe(60);
+    });
+  });
+
+  describe("stop-loss", () => {
+    it("exits at the stop price when the low breaches it intraday", () => {
+      // Buy day 1 at 100. Day 2 opens at 95.5 (close - 1, above the 95 stop)
+      // and its low of 94.5 (close - 2) breaches it → fill at exactly 95.
+      const candles = makeCandles([100, 96.5, 96.5]);
+      const result = runBacktest(candles, "buy_hold", 10_000, { stopLossPct: 5 });
+      expect(result.trades.length).toBe(1);
+      expect(result.trades[0].exitReason).toBe("stop");
+      expect(result.trades[0].exitPrice).toBeCloseTo(95, 5);
+      expect(result.totalReturn).toBeCloseTo(-5, 1);
+    });
+
+    it("fills at the open when price gaps through the stop", () => {
+      // Day 2 open = 79 (close - 1), below the 95 stop → fill at the open.
+      const candles = makeCandles([100, 80, 80]);
+      const result = runBacktest(candles, "buy_hold", 10_000, { stopLossPct: 5 });
+      expect(result.trades[0].exitReason).toBe("stop");
+      expect(result.trades[0].exitPrice).toBeCloseTo(79, 5);
+    });
+  });
+
+  describe("take-profit", () => {
+    it("exits at the target when the high reaches it", () => {
+      // Buy at 100; day 2 high = 111 (close + 1) ≥ 10% target (110) → fill at 110.
+      const candles = makeCandles([100, 110, 110]);
+      const result = runBacktest(candles, "buy_hold", 10_000, { takeProfitPct: 10 });
+      expect(result.trades.length).toBe(1);
+      expect(result.trades[0].exitReason).toBe("target");
+      expect(result.trades[0].exitPrice).toBeCloseTo(110, 5);
+      expect(result.totalReturn).toBeCloseTo(10, 1);
+    });
+  });
+
+  describe("position sizing", () => {
+    it("deploys only the requested fraction of capital", () => {
+      // 50% sizing on a double: half the cash doubles → +50% total.
+      const candles = makeCandles([100, 200]);
+      const result = runBacktest(candles, "buy_hold", 10_000, { positionPct: 50 });
+      const finalEquity = result.equityCurve[result.equityCurve.length - 1].value;
+      expect(finalEquity).toBeCloseTo(15_000, 0);
+    });
+  });
+
+  describe("backward compatibility", () => {
+    it("no options behaves like full-size, no-stop run", () => {
+      const candles = makeCandles([100, 110, 120]);
+      const withDefaults = runBacktest(candles, "buy_hold", 10_000);
+      const withEmpty = runBacktest(candles, "buy_hold", 10_000, {});
+      expect(withDefaults.totalReturn).toBeCloseTo(withEmpty.totalReturn, 6);
+    });
+  });
 });

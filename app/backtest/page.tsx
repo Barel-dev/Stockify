@@ -21,8 +21,17 @@ const STRATEGIES: { key: Strategy; label: string; description: string }[] = [
   { key: "buy_hold", label: "Buy & Hold", description: "Buy on day 1, hold to end." },
   { key: "rsi", label: "RSI Oversold/Overbought", description: "Buy RSI<30, sell RSI>70." },
   { key: "sma_cross", label: "SMA 20/50 Cross", description: "Buy on golden cross, sell on death cross." },
+  { key: "ema_cross", label: "EMA 12/26 Cross", description: "Faster cross system on exponential averages." },
   { key: "macd", label: "MACD Crossover", description: "Buy/sell on MACD signal line cross." },
+  { key: "bollinger", label: "Bollinger Bands (20, 2σ)", description: "Mean reversion: buy below the lower band, sell above the upper." },
 ];
+
+const EXIT_LABELS: Record<string, { label: string; cls: string }> = {
+  signal: { label: "Signal", cls: "border-blue-500/30 bg-blue-500/10 text-blue-300" },
+  stop: { label: "Stop", cls: "border-rose-500/30 bg-rose-500/10 text-rose-300" },
+  target: { label: "Target", cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+  end: { label: "End", cls: "border-white/10 bg-white/[0.05] text-gray-400" },
+};
 
 const RANGES: { key: string; label: string; days: number }[] = [
   { key: "1Y", label: "1 Year", days: 365 },
@@ -38,6 +47,9 @@ export default function BacktestPage() {
   const [strategy, setStrategy] = useState<Strategy>("rsi");
   const [rangeDays, setRangeDays] = useState(730);
   const [capital, setCapital] = useState(10_000);
+  const [stopLoss, setStopLoss] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
+  const [positionPct, setPositionPct] = useState("100");
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +85,14 @@ export default function BacktestPage() {
       l: data.l[i],
       c: data.c[i],
     }));
-    const r = runBacktest(candles, strategy, capital);
+    const sl = parseFloat(stopLoss);
+    const tp = parseFloat(takeProfit);
+    const pos = parseFloat(positionPct);
+    const r = runBacktest(candles, strategy, capital, {
+      stopLossPct: Number.isFinite(sl) && sl > 0 ? sl : undefined,
+      takeProfitPct: Number.isFinite(tp) && tp > 0 ? tp : undefined,
+      positionPct: Number.isFinite(pos) && pos > 0 ? pos : undefined,
+    });
     setResult(r);
     setLoading(false);
   };
@@ -207,6 +226,46 @@ export default function BacktestPage() {
               />
             </div>
           </div>
+
+          {/* Risk management */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold mb-2">Stop-Loss % <span className="text-gray-700 normal-case tracking-normal">(optional)</span></label>
+              <input
+                type="number"
+                value={stopLoss}
+                onChange={(e) => setStopLoss(e.target.value)}
+                placeholder="e.g. 5"
+                min={0}
+                step="any"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white placeholder:text-gray-600 focus:outline-none focus:border-rose-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold mb-2">Take-Profit % <span className="text-gray-700 normal-case tracking-normal">(optional)</span></label>
+              <input
+                type="number"
+                value={takeProfit}
+                onChange={(e) => setTakeProfit(e.target.value)}
+                placeholder="e.g. 15"
+                min={0}
+                step="any"
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white placeholder:text-gray-600 focus:outline-none focus:border-emerald-500/50 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold mb-2">Position Size %</label>
+              <input
+                type="number"
+                value={positionPct}
+                onChange={(e) => setPositionPct(e.target.value)}
+                min={1}
+                max={100}
+                step={1}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white focus:outline-none focus:border-blue-500/50 transition-all"
+              />
+            </div>
+          </div>
           <div className="mt-4 flex items-center justify-between gap-4 flex-wrap">
             <p className="text-xs text-gray-500">
               {STRATEGIES.find((s) => s.key === strategy)?.description}
@@ -267,21 +326,29 @@ export default function BacktestPage() {
                         <th className="text-left pb-2">Exit</th>
                         <th className="text-right pb-2">Entry $</th>
                         <th className="text-right pb-2">Exit $</th>
+                        <th className="text-right pb-2">Exit Via</th>
                         <th className="text-right pb-2">P&amp;L</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {result.trades.map((t, i) => (
+                      {result.trades.map((t, i) => {
+                        const exit = EXIT_LABELS[t.exitReason ?? "signal"];
+                        return (
                         <tr key={i} className="border-t border-white/5">
                           <td className="py-2 text-gray-400">{new Date(t.entryTime * 1000).toLocaleDateString()}</td>
                           <td className="py-2 text-gray-400">{new Date(t.exitTime * 1000).toLocaleDateString()}</td>
                           <td className="py-2 text-right text-white font-bold">${t.entryPrice.toFixed(2)}</td>
                           <td className="py-2 text-right text-white font-bold">${t.exitPrice.toFixed(2)}</td>
+                          <td className="py-2 text-right">
+                            <span className={`inline-block rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${exit.cls}`}>
+                              {exit.label}
+                            </span>
+                          </td>
                           <td className={`py-2 text-right font-black ${t.pnlPct >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                             {t.pnlPct >= 0 ? "+" : ""}{t.pnlPct.toFixed(2)}%
                           </td>
                         </tr>
-                      ))}
+                      );})}
                     </tbody>
                   </table>
                 </div>

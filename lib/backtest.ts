@@ -8,7 +8,9 @@ export type Candle = {
   c: number;
 };
 
-export type Strategy = "rsi" | "sma_cross" | "macd" | "buy_hold";
+export type Strategy = "rsi" | "sma_cross" | "ema_cross" | "macd" | "bollinger" | "buy_hold";
+
+export type ExitReason = "signal" | "stop" | "target" | "end";
 
 export type Trade = {
   entryTime: number;
@@ -16,6 +18,16 @@ export type Trade = {
   entryPrice: number;
   exitPrice: number;
   pnlPct: number;
+  exitReason?: ExitReason;
+};
+
+export type BacktestOptions = {
+  /** Exit a position if price falls this % below entry (e.g. 5 = -5%). */
+  stopLossPct?: number;
+  /** Exit a position if price rises this % above entry. */
+  takeProfitPct?: number;
+  /** Percent of available cash deployed per entry (default 100). */
+  positionPct?: number;
 };
 
 export type BacktestResult = {
@@ -96,9 +108,46 @@ function rsi(values: number[], period = 14): (number | null)[] {
   return out;
 }
 
+/** Rolling standard deviation matching the sma() window convention. */
+function rollingStdev(values: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = [];
+  for (let i = 0; i < values.length; i++) {
+    if (i < period - 1) {
+      out.push(null);
+      continue;
+    }
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += values[j];
+    const mean = sum / period;
+    let sq = 0;
+    for (let j = i - period + 1; j <= i; j++) sq += (values[j] - mean) ** 2;
+    out.push(Math.sqrt(sq / period));
+  }
+  return out;
+}
+
 // ---------------- Backtest runner ----------------
 
 type Signal = "buy" | "sell" | "hold";
+
+/** Shared cross-over signal logic for SMA/EMA pairs. */
+function crossSignals(fast: (number | null)[], slow: (number | null)[]): Signal[] {
+  const out: Signal[] = [];
+  for (let i = 0; i < fast.length; i++) {
+    const f = fast[i];
+    const s = slow[i];
+    const fPrev = i > 0 ? fast[i - 1] : null;
+    const sPrev = i > 0 ? slow[i - 1] : null;
+    if (f == null || s == null || fPrev == null || sPrev == null) {
+      out.push("hold");
+      continue;
+    }
+    if (fPrev <= sPrev && f > s) out.push("buy");
+    else if (fPrev >= sPrev && f < s) out.push("sell");
+    else out.push("hold");
+  }
+  return out;
+}
 
 function computeSignals(candles: Candle[], strategy: Strategy): Signal[] {
   const closes = candles.map((c) => c.c);
@@ -118,23 +167,25 @@ function computeSignals(candles: Candle[], strategy: Strategy): Signal[] {
   }
 
   if (strategy === "sma_cross") {
-    const fast = sma(closes, 20);
-    const slow = sma(closes, 50);
-    const out: Signal[] = [];
-    for (let i = 0; i < closes.length; i++) {
-      const f = fast[i];
-      const s = slow[i];
-      const fPrev = i > 0 ? fast[i - 1] : null;
-      const sPrev = i > 0 ? slow[i - 1] : null;
-      if (f == null || s == null || fPrev == null || sPrev == null) {
-        out.push("hold");
-        continue;
-      }
-      if (fPrev <= sPrev && f > s) out.push("buy");
-      else if (fPrev >= sPrev && f < s) out.push("sell");
-      else out.push("hold");
-    }
-    return out;
+    return crossSignals(sma(closes, 20), sma(closes, 50));
+  }
+
+  if (strategy === "ema_cross") {
+    return crossSignals(ema(closes, 12), ema(closes, 26));
+  }
+
+  if (strategy === "bollinger") {
+    // Mean-reversion: buy a close below the lower band, sell above the upper.
+    const mid = sma(closes, 20);
+    const sd = rollingStdev(closes, 20);
+    return closes.map((c, i) => {
+      const m = mid[i];
+      const s = sd[i];
+      if (m == null || s == null) return "hold";
+      if (c < m - 2 * s) return "buy";
+      if (c > m + 2 * s) return "sell";
+      return "hold";
+    });
   }
 
   if (strategy === "macd") {
@@ -158,27 +209,18 @@ function computeSignals(candles: Candle[], strategy: Strategy): Signal[] {
       }
     }
 
-    const out: Signal[] = [];
-    for (let i = 0; i < closes.length; i++) {
-      const m = macdLine[i];
-      const s = signal[i];
-      const mPrev = i > 0 ? macdLine[i - 1] : null;
-      const sPrev = i > 0 ? signal[i - 1] : null;
-      if (m == null || s == null || mPrev == null || sPrev == null) {
-        out.push("hold");
-        continue;
-      }
-      if (mPrev <= sPrev && m > s) out.push("buy");
-      else if (mPrev >= sPrev && m < s) out.push("sell");
-      else out.push("hold");
-    }
-    return out;
+    return crossSignals(macdLine, signal);
   }
 
   return candles.map(() => "hold");
 }
 
-export function runBacktest(candles: Candle[], strategy: Strategy, initialCapital = 10_000): BacktestResult {
+export function runBacktest(
+  candles: Candle[],
+  strategy: Strategy,
+  initialCapital = 10_000,
+  options: BacktestOptions = {}
+): BacktestResult {
   if (candles.length < 2) {
     return {
       strategy,
@@ -194,6 +236,8 @@ export function runBacktest(candles: Candle[], strategy: Strategy, initialCapita
   }
 
   const signals = computeSignals(candles, strategy);
+  const { stopLossPct, takeProfitPct } = options;
+  const positionFraction = Math.min(Math.max(options.positionPct ?? 100, 1), 100) / 100;
 
   let cash = initialCapital;
   let shares = 0;
@@ -203,25 +247,43 @@ export function runBacktest(candles: Candle[], strategy: Strategy, initialCapita
   const equityCurve: { time: number; value: number }[] = [];
   const trades: Trade[] = [];
 
-  for (let i = 0; i < candles.length; i++) {
-    const { t, c } = candles[i];
-    const sig = signals[i];
+  const closePosition = (exitTime: number, exitPrice: number, exitReason: ExitReason) => {
+    cash += shares * exitPrice;
+    trades.push({
+      entryTime,
+      exitTime,
+      entryPrice,
+      exitPrice,
+      pnlPct: ((exitPrice - entryPrice) / entryPrice) * 100,
+      exitReason,
+    });
+    shares = 0;
+  };
 
+  for (let i = 0; i < candles.length; i++) {
+    const { t, o, h, l, c } = candles[i];
+
+    // Stop-loss / take-profit fire intraday, before the close-based signal.
+    // A gap through the level fills at the open (realistic worst/best case).
+    if (shares > 0) {
+      const stopPrice = stopLossPct != null ? entryPrice * (1 - stopLossPct / 100) : null;
+      const targetPrice = takeProfitPct != null ? entryPrice * (1 + takeProfitPct / 100) : null;
+      if (stopPrice != null && (o <= stopPrice || l <= stopPrice)) {
+        closePosition(t, Math.min(o, stopPrice), "stop");
+      } else if (targetPrice != null && (o >= targetPrice || h >= targetPrice)) {
+        closePosition(t, Math.max(o, targetPrice), "target");
+      }
+    }
+
+    const sig = signals[i];
     if (sig === "buy" && shares === 0) {
-      shares = cash / c;
-      cash = 0;
+      const invest = cash * positionFraction;
+      shares = invest / c;
+      cash -= invest;
       entryPrice = c;
       entryTime = t;
     } else if (sig === "sell" && shares > 0) {
-      cash = shares * c;
-      trades.push({
-        entryTime,
-        exitTime: t,
-        entryPrice,
-        exitPrice: c,
-        pnlPct: ((c - entryPrice) / entryPrice) * 100,
-      });
-      shares = 0;
+      closePosition(t, c, "signal");
     }
 
     const equity = cash + shares * c;
@@ -231,13 +293,7 @@ export function runBacktest(candles: Candle[], strategy: Strategy, initialCapita
   // Close any open position at the end
   if (shares > 0) {
     const last = candles[candles.length - 1];
-    trades.push({
-      entryTime,
-      exitTime: last.t,
-      entryPrice,
-      exitPrice: last.c,
-      pnlPct: ((last.c - entryPrice) / entryPrice) * 100,
-    });
+    closePosition(last.t, last.c, "end");
   }
 
   // Buy-and-hold baseline

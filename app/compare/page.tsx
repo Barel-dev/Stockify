@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
+import CorrelationMatrix from "@/components/CorrelationMatrix";
 import Image from "next/image";
 import { createChart, ColorType, CrosshairMode, LineSeries } from "lightweight-charts";
 import {
@@ -1284,6 +1285,9 @@ export default function ComparePage() {
               {results.length === 2 && (
                 <ComparisonTable left={results[0]} right={results[1]} />
               )}
+
+              {/* Correlation matrix (any number of tickers) */}
+              <CorrelationMatrix symbols={results.map((r) => r.symbol)} />
 
               {/* Performance chart */}
               {results.length === 2 && (
