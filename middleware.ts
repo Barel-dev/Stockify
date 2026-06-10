@@ -1,15 +1,9 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-const isProtectedRoute = createRouteMatcher([
-  "/watchlist(.*)",
-  "/portfolio(.*)",
-]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect();
-  }
-});
+// No middleware-protected pages: /watchlist and /portfolio render a live demo
+// for signed-out visitors, and every user-data API route verifies auth()
+// in-handler, so data access never depends on this middleware.
+export default clerkMiddleware();
 
 export const config = {
   matcher: [

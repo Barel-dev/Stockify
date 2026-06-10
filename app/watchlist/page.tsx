@@ -9,6 +9,9 @@ import { useLivePrices } from "@/lib/use-live-prices";
 import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
+import DemoBanner from "@/components/DemoBanner";
+import Sparkline from "@/components/Sparkline";
+import { DEMO_WATCHLIST } from "@/lib/demo";
 
 type WatchlistItem = {
   id: string;
@@ -54,7 +57,8 @@ function saveOrder(symbols: string[]) {
 }
 
 export default function WatchlistPage() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
+  const isDemo = isLoaded && !isSignedIn;
   const { symbol: cSym, convert: cConv } = useCurrency();
   const [items, setItems] = useState<WatchlistCardData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,12 +73,14 @@ export default function WatchlistPage() {
   const { prices: livePrices, connected } = useLivePrices(liveSymbols, wsToken);
 
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isLoaded) return;
 
     async function load() {
       try {
-        const res = await fetch("/api/watchlist");
-        const watchlist: WatchlistItem[] = await res.json();
+        // Signed out → seeded demo watchlist with live quotes.
+        const watchlist: WatchlistItem[] = isSignedIn
+          ? await (await fetch("/api/watchlist")).json()
+          : DEMO_WATCHLIST;
 
         const withQuotes = await Promise.all(
           watchlist.map(async (item) => {
@@ -93,7 +99,7 @@ export default function WatchlistPage() {
     }
 
     load();
-  }, [isSignedIn]);
+  }, [isSignedIn, isLoaded]);
 
   const handleRemove = async (symbol: string) => {
     setItems((prev) => prev.filter((i) => i.symbol !== symbol));
@@ -146,6 +152,8 @@ export default function WatchlistPage() {
               </span>
             )}
           </div>
+
+          {isDemo && !loading && <DemoBanner thing="watchlist" />}
 
           {!loading && items.length > 0 && (() => {
             const withPrice = items.filter((i) => i.quote && i.quote.c > 0);
@@ -246,13 +254,15 @@ export default function WatchlistPage() {
                                   >
                                     <FiMove className="text-sm" />
                                   </div>
-                                  <button
-                                    onClick={() => handleRemove(item.symbol)}
-                                    className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                                    title="Remove from watchlist"
-                                  >
-                                    <FiTrash2 className="text-sm" />
-                                  </button>
+                                  {!isDemo && (
+                                    <button
+                                      onClick={() => handleRemove(item.symbol)}
+                                      className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                                      title="Remove from watchlist"
+                                    >
+                                      <FiTrash2 className="text-sm" />
+                                    </button>
+                                  )}
                                 </div>
                               </div>
 
@@ -273,6 +283,8 @@ export default function WatchlistPage() {
                               ) : (
                                 <p className="text-sm text-gray-500">Price unavailable</p>
                               )}
+
+                              <Sparkline symbol={item.symbol} />
                             </div>
                           )}
                         </Draggable>

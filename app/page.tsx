@@ -48,6 +48,7 @@ import { useAlertChecker } from "@/lib/use-alert-checker";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import AIAnalyst from "@/components/AIAnalyst";
+import InsiderTransactions from "@/components/InsiderTransactions";
 import { useCurrency } from "@/lib/use-currency";
 
 // API calls go through server-side routes in /api/*
@@ -2192,6 +2193,8 @@ function HomeContent() {
                   </SectionCard>
 
                   {!ticker.includes(":") && <AIAnalyst symbol={ticker} />}
+
+                  {!ticker.includes(":") && <InsiderTransactions symbol={ticker} />}
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
                     <MetricCard label="Open" value={formatPrice(stockData.o, analysis.assetType)} hint="Today's opening price" accent="blue" />

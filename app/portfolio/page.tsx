@@ -21,6 +21,8 @@ import { useCurrency } from "@/lib/use-currency";
 import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import PortfolioBenchmark from "@/components/PortfolioBenchmark";
+import DemoBanner from "@/components/DemoBanner";
+import { DEMO_PORTFOLIO } from "@/lib/demo";
 
 type SuggestionItem = { symbol: string; description: string };
 type FinnhubSearchResult = { symbol: string; description?: string; displaySymbol?: string };
@@ -46,7 +48,8 @@ const MARKET_DB: SuggestionItem[] = [
 ];
 
 export default function PortfolioPage() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
+  const isDemo = isLoaded && !isSignedIn;
   const { symbol: cSym, convert: cConv } = useCurrency();
   const [holdings, setHoldings] = useState<HoldingData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,11 +107,13 @@ export default function PortfolioPage() {
   };
 
   useEffect(() => {
-    if (!isSignedIn) return;
+    if (!isLoaded) return;
     async function load() {
       try {
-        const res = await fetch("/api/portfolio");
-        const items: PortfolioItem[] = await res.json();
+        // Signed out → seeded demo holdings with live quotes.
+        const items: PortfolioItem[] = isSignedIn
+          ? await (await fetch("/api/portfolio")).json()
+          : DEMO_PORTFOLIO;
         const withQuotes = await Promise.all(
           items.map(async (item) => {
             const qr = await fetch(`/api/quote?symbol=${encodeURIComponent(item.symbol)}`);
@@ -124,7 +129,7 @@ export default function PortfolioPage() {
       }
     }
     load();
-  }, [isSignedIn]);
+  }, [isSignedIn, isLoaded]);
 
   const handleAdd = async () => {
     if (!formSymbol || !formShares || !formPrice) return;
@@ -238,25 +243,27 @@ export default function PortfolioPage() {
               <h1 className="text-4xl md:text-5xl font-black tracking-tight">Portfolio</h1>
             </div>
             <div className="flex items-center gap-2">
-              <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCsvImport} className="hidden" />
-              <button
+              {!isDemo && <input ref={csvInputRef} type="file" accept=".csv" onChange={handleCsvImport} className="hidden" />}
+              {!isDemo && <button
                 onClick={() => csvInputRef.current?.click()}
                 disabled={csvImporting}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-gray-400 hover:text-white hover:border-white/20 transition-all disabled:opacity-50"
               >
                 <FiUpload size={12} />
                 {csvImporting ? "Importing..." : "Import CSV"}
-              </button>
-              <button
+              </button>}
+              {!isDemo && <button
                 onClick={() => setShowForm((v) => !v)}
                 className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-blue-300 hover:bg-blue-500/20 transition-all"
               >
                 {showForm ? <FiX /> : <FiPlus />}
                 {showForm ? "Cancel" : "Add Holding"}
-              </button>
+              </button>}
             </div>
           </div>
           <p className="text-gray-400 text-sm mb-8">Track your investments with live P&L.</p>
+
+          {isDemo && !loading && <DemoBanner thing="portfolio" />}
 
           {/* Add holding form */}
           {showForm && (
@@ -513,13 +520,15 @@ export default function PortfolioPage() {
                         )}
                       </div>
                       <div className="flex justify-end">
-                        <button
-                          onClick={() => handleRemove(h.id)}
-                          className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                          title="Remove holding"
-                        >
-                          <FiTrash2 size={14} />
-                        </button>
+                        {!isDemo && (
+                          <button
+                            onClick={() => handleRemove(h.id)}
+                            className="rounded-full p-2 text-gray-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                            title="Remove holding"
+                          >
+                            <FiTrash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
