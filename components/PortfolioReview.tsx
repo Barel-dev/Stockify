@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { FiZap, FiLoader, FiRefreshCw } from "react-icons/fi";
+import { FiShield, FiLoader, FiRefreshCw } from "react-icons/fi";
 import { renderMarkdown } from "@/components/SimpleMarkdown";
 
-type Props = { symbol: string };
-
-export default function AIAnalyst({ symbol }: Props) {
-  const [analysis, setAnalysis] = useState<string>("");
+/**
+ * AI risk review of the signed-in user's portfolio. The API route reads
+ * holdings server-side, so this component takes no data props.
+ */
+export default function PortfolioReview() {
+  const [review, setReview] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
@@ -15,7 +17,7 @@ export default function AIAnalyst({ symbol }: Props) {
   const checkedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Check on mount whether the API is configured (cheap GET — no data fetching)
+  // Reuse the analyze config probe to hide the panel when AI isn't configured.
   useEffect(() => {
     if (checkedRef.current) return;
     checkedRef.current = true;
@@ -32,18 +34,13 @@ export default function AIAnalyst({ symbol }: Props) {
     const ac = new AbortController();
     abortRef.current = ac;
 
-    setAnalysis("");
+    setReview("");
     setError(null);
     setLoading(true);
     setStarted(true);
 
     try {
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
-        signal: ac.signal,
-      });
+      const res = await fetch("/api/analyze-portfolio", { method: "POST", signal: ac.signal });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Request failed" }));
@@ -69,7 +66,7 @@ export default function AIAnalyst({ symbol }: Props) {
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        setAnalysis(acc);
+        setReview(acc);
       }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -83,21 +80,21 @@ export default function AIAnalyst({ symbol }: Props) {
   if (hidden) return null;
 
   return (
-    <div className="rounded-3xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.06] via-black/40 to-violet-500/[0.06] backdrop-blur-xl p-6">
+    <div className="rounded-3xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.06] via-black/40 to-blue-500/[0.06] backdrop-blur-xl p-6 mb-8">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="rounded-xl bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-blue-500/30 p-2">
-            <FiZap className="text-blue-400" size={16} />
+          <div className="rounded-xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 border border-emerald-500/30 p-2">
+            <FiShield className="text-emerald-400" size={16} />
           </div>
           <div>
-            <h3 className="text-sm font-black text-white">AI Analyst</h3>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">Bull/Bear thesis · Claude</p>
+            <h3 className="text-sm font-black text-white">AI Portfolio Review</h3>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500 font-bold">Risk &amp; concentration · Claude</p>
           </div>
         </div>
         {started && !loading && (
           <button
             onClick={run}
-            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-white hover:border-blue-500/30 transition-all inline-flex items-center gap-1.5"
+            className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-white hover:border-emerald-500/30 transition-all inline-flex items-center gap-1.5"
           >
             <FiRefreshCw size={11} /> Regenerate
           </button>
@@ -107,9 +104,9 @@ export default function AIAnalyst({ symbol }: Props) {
       {!started && (
         <button
           onClick={run}
-          className="w-full rounded-2xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/15 hover:border-blue-500/50 transition-all py-4 text-sm font-bold text-blue-300 uppercase tracking-widest inline-flex items-center justify-center gap-2"
+          className="w-full rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 hover:border-emerald-500/50 transition-all py-4 text-sm font-bold text-emerald-300 uppercase tracking-widest inline-flex items-center justify-center gap-2"
         >
-          <FiZap size={14} /> Generate AI Analysis
+          <FiShield size={14} /> Review My Portfolio
         </button>
       )}
 
@@ -119,11 +116,11 @@ export default function AIAnalyst({ symbol }: Props) {
 
       {started && !error && (
         <div className="space-y-2">
-          {renderMarkdown(analysis)}
+          {renderMarkdown(review)}
           {loading && (
             <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
               <FiLoader className="animate-spin" size={12} />
-              <span>Analyzing...</span>
+              <span>Reviewing...</span>
             </div>
           )}
         </div>

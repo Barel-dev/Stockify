@@ -22,6 +22,7 @@ import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import PortfolioBenchmark from "@/components/PortfolioBenchmark";
 import DemoBanner from "@/components/DemoBanner";
+import PortfolioReview from "@/components/PortfolioReview";
 import { DEMO_PORTFOLIO } from "@/lib/demo";
 
 type SuggestionItem = { symbol: string; description: string };
@@ -356,6 +357,9 @@ export default function PortfolioPage() {
               </div>
             </div>
           )}
+
+          {/* AI risk review (signed-in only — the API reads holdings server-side) */}
+          {!loading && !isDemo && holdings.length > 0 && <PortfolioReview />}
 
           {/* Portfolio vs S&P 500 */}
           {!loading && withPrice.length > 0 && (

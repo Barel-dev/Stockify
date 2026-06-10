@@ -8,6 +8,9 @@ export type YahooMeta = {
   regularMarketPrice?: number;
   chartPreviousClose?: number;
   previousClose?: number;
+  regularMarketVolume?: number;
+  longName?: string;
+  shortName?: string;
 };
 
 export type YahooChartResult = {
@@ -82,4 +85,34 @@ export async function fetchYahooQuote(symbol: string): Promise<YahooQuote | null
   const change = price - prevClose;
   const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
   return { c: price, d: change, dp: changePct };
+}
+
+export type YahooSnapshot = YahooQuote & {
+  symbol: string;
+  name: string | null;
+  /** Today's open vs yesterday's close, in percent — the gap at the bell. */
+  gapPct: number | null;
+  volume: number | null;
+};
+
+/** Day snapshot used by the movers scanner: quote + open gap + volume. */
+export async function fetchYahooSnapshot(symbol: string): Promise<YahooSnapshot | null> {
+  const result = await fetchYahooChart(toYahooSymbol(symbol), "1d", "1d");
+  const meta = result?.meta;
+  if (!meta || !meta.regularMarketPrice) return null;
+  const price = meta.regularMarketPrice;
+  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+  const change = price - prevClose;
+  const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
+  const open = result?.indicators?.quote?.[0]?.open?.[0] ?? null;
+  const gapPct = open != null && prevClose > 0 ? ((open - prevClose) / prevClose) * 100 : null;
+  return {
+    symbol,
+    name: meta.longName ?? meta.shortName ?? null,
+    c: price,
+    d: change,
+    dp: changePct,
+    gapPct,
+    volume: meta.regularMarketVolume ?? null,
+  };
 }
