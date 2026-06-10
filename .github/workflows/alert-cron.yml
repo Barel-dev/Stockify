@@ -1,0 +1,26 @@
+# Server-side price-alert sweep. GitHub Actions is the scheduler because
+# Vercel Hobby crons only run once a day. Requires the ALERT_CRON_SECRET
+# repo secret to match CRON_SECRET in Vercel — until both are set, this
+# workflow exits early without failing.
+name: Alert Cron
+
+on:
+  schedule:
+    - cron: "*/5 13-21 * * 1-5" # every 5 min during US market hours (UTC), Mon-Fri
+  workflow_dispatch:
+
+jobs:
+  check-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger alert check
+        env:
+          CRON_SECRET: ${{ secrets.ALERT_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "ALERT_CRON_SECRET repo secret not set - skipping."
+            exit 0
+          fi
+          curl -fsS -X POST "https://stockifyy.vercel.app/api/alerts/check" \
+            -H "x-cron-secret: $CRON_SECRET" \
+            -m 55

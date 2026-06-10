@@ -23,6 +23,7 @@ import Background from "@/components/Background";
 import PortfolioBenchmark from "@/components/PortfolioBenchmark";
 import DemoBanner from "@/components/DemoBanner";
 import PortfolioReview from "@/components/PortfolioReview";
+import TransactionHistory from "@/components/TransactionHistory";
 import { DEMO_PORTFOLIO } from "@/lib/demo";
 
 type SuggestionItem = { symbol: string; description: string };
@@ -540,6 +541,9 @@ export default function PortfolioPage() {
               })}
             </div>
           )}
+
+          {/* Realized P&L from recorded buys/sells (signed-in only) */}
+          {!loading && !isDemo && <TransactionHistory />}
         </div>
       </div>
     </Background>

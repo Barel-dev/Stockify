@@ -1,7 +1,6 @@
-// v3: navigations are now network-first so a new deploy shows immediately
-// instead of serving a stale cached page. Bumping the name purges old caches
-// (including any previously-cached HTML).
-const CACHE_NAME = "stockify-v3";
+// v4: adds Web Push handlers for server-side price alerts.
+// (v3 made navigations network-first so new deploys show immediately.)
+const CACHE_NAME = "stockify-v4";
 // Only precache public, static pages. /watchlist is auth-gated and would cache
 // a sign-in redirect, so it is intentionally excluded.
 const PRECACHE = ["/", "/compare"];
@@ -60,5 +59,42 @@ self.addEventListener("fetch", (event) => {
   // Static assets (hashed _next chunks, fonts, images): cache-first for speed.
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((res) => cachePut(request, res)))
+  );
+});
+
+// ---- Web Push (server-side price alerts) ----
+
+self.addEventListener("push", (event) => {
+  let payload = { title: "Stockify", body: "Price alert triggered", url: "/" };
+  try {
+    payload = { ...payload, ...event.data.json() };
+  } catch {
+    /* keep defaults */
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: payload.url, // collapse repeat alerts for the same ticker
+      data: { url: payload.url },
+      requireInteraction: true,
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const win of wins) {
+        if (new URL(win.url).origin === self.location.origin && "focus" in win) {
+          win.navigate(url);
+          return win.focus();
+        }
+      }
+      return clients.openWindow(url);
+    })
   );
 });

@@ -63,17 +63,21 @@
 | 📡 **Live Data** | WebSocket price ticks + SSE market stream pushing indices every 15s |
 | 📊 **Technicals** | RSI, MACD, SMA/EMA, ATR, volatility, 52-week range — computed client-side |
 | 🤖 **AI Analyst** | Streams a bull/bear thesis from Claude Haiku with quote + metrics + news context |
-| 🧪 **Backtesting** | RSI, SMA cross, MACD strategies over 1Y/2Y/5Y — equity curve, Sharpe, drawdown |
-| 💼 **Portfolio** | Holdings with P&L, allocation chart, CSV import, 6-month SPY benchmark |
+| 🛡️ **AI Portfolio Review** | Claude risk review of your holdings — concentration, winners/losers, what to watch |
+| 🧪 **Backtesting** | RSI, SMA/EMA cross, MACD, Bollinger strategies with stop-loss / take-profit / position sizing |
+| 💼 **Portfolio** | Holdings with P&L, allocation chart, CSV import, 6-month SPY benchmark, transaction history with realized P&L |
+| ⚡ **Movers** | ~70 liquid large caps ranked by day % change or gap-at-open, refreshed every minute |
+| 👥 **Insider Activity** | SEC Form 4 buys/sells from the last 6 months on every stock page |
 | 🗺️ **Heatmap** | Sector-based market heatmap with breadth stats across 27 stocks |
 | 🔎 **Screener** | Filter & sort top 50 S&P 500 stocks by P/E, dividend, beta, market cap |
-| ⚖️ **Compare** | Side-by-side analysis of 2–4 tickers with normalized performance chart |
-| ⭐ **Watchlist** | Drag-and-drop with live WebSocket prices |
-| 📅 **Earnings** | Weekly earnings calendar with EPS estimates |
-| 🔔 **Alerts** | Price alerts with browser + sound notification |
+| ⚖️ **Compare** | Side-by-side analysis of 2–4 tickers with performance chart + correlation matrix |
+| ⭐ **Watchlist** | Drag-and-drop with live WebSocket prices and 7-day sparklines |
+| 📅 **Earnings** | Weekly earnings calendar sorted by revenue, with EPS estimates |
+| 🔔 **Alerts** | Price alerts with browser notifications — plus server-side Web Push that fires even when the tab is closed |
+| 👁️ **Demo Mode** | Signed-out visitors get a live demo portfolio & watchlist — no account needed |
 | 💱 **Multi-Currency** | USD / EUR / GBP / ILS with live exchange rates |
 | 📄 **Export** | Per-ticker PDF reports and portfolio CSV |
-| 🔐 **Auth** | Clerk (Google + GitHub OAuth), protected routes |
+| 🔐 **Auth** | Clerk (Google + GitHub OAuth); user-data APIs verified in-handler |
 
 ---
 
@@ -200,7 +204,43 @@ create table alerts (
   triggered boolean default false,
   created_at timestamptz default now()
 );
+
+-- Optional: transaction history with realized P&L (buys logged on add, sells on remove)
+create table transactions (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null,
+  symbol text not null,
+  side text not null check (side in ('buy','sell')),
+  shares numeric not null,
+  price numeric not null,
+  realized_pnl numeric,
+  created_at timestamptz default now()
+);
+create index idx_transactions_user on transactions(user_id, created_at desc);
+
+-- Optional: Web Push subscriptions for server-side alerts
+create table push_subscriptions (
+  id uuid default gen_random_uuid() primary key,
+  user_id text not null,
+  endpoint text not null unique,
+  subscription jsonb not null,
+  created_at timestamptz default now()
+);
 ```
+
+### Server-Side Push Alerts (optional)
+
+Price alerts normally fire only while a tab is open. To get push notifications
+with the app closed:
+
+1. Generate VAPID keys: `npx web-push generate-vapid-keys`
+2. In Vercel env vars set `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+   and a random `CRON_SECRET`.
+3. Create the `push_subscriptions` table (SQL above).
+4. Add a GitHub repo secret `ALERT_CRON_SECRET` with the same value as
+   `CRON_SECRET` — the workflow in `.github/workflows/alert-cron.yml` then
+   sweeps alerts every 5 minutes during US market hours.
+5. In the app, open any ticker's alert form and click **Enable Push Alerts**.
 
 ---
 

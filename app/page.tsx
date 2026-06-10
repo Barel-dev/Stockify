@@ -49,6 +49,7 @@ import Navbar from "@/components/Navbar";
 import Background from "@/components/Background";
 import AIAnalyst from "@/components/AIAnalyst";
 import InsiderTransactions from "@/components/InsiderTransactions";
+import PushToggle from "@/components/PushToggle";
 import { useCurrency } from "@/lib/use-currency";
 
 // API calls go through server-side routes in /api/*
@@ -2003,6 +2004,7 @@ function HomeContent() {
                           >
                             Create Alert
                           </button>
+                          <PushToggle />
                         </div>
                       )}
 
