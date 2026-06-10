@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { getSupabase } from "@/lib/supabase";
 
+// Log the real error server-side; never leak table/constraint details to clients.
+function dbError(scope: string, error: { message: string }) {
+  console.error(`alerts ${scope} error:`, error.message);
+  return NextResponse.json({ error: "Database error" }, { status: 500 });
+}
+
+const SYMBOL_RE = /^[A-Za-z0-9.:_=^-]{1,25}$/;
+
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -13,7 +21,7 @@ export async function GET() {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError("GET", error);
   return NextResponse.json(data);
 }
 
@@ -21,14 +29,23 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json();
-  const { symbol, targetPrice, direction } = body;
+  const body = await req.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
 
-  if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
-  if (targetPrice === undefined || targetPrice === null || isNaN(Number(targetPrice))) {
-    return NextResponse.json({ error: "Missing or invalid targetPrice" }, { status: 400 });
+  const { symbol, targetPrice, direction } = body as {
+    symbol?: unknown;
+    targetPrice?: unknown;
+    direction?: unknown;
+  };
+
+  if (typeof symbol !== "string" || !SYMBOL_RE.test(symbol)) {
+    return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
   }
-  if (!direction || !["above", "below"].includes(direction)) {
+  const nTarget = Number(targetPrice);
+  if (!Number.isFinite(nTarget) || nTarget <= 0 || nTarget > 1e9) {
+    return NextResponse.json({ error: "targetPrice must be a positive number" }, { status: 400 });
+  }
+  if (direction !== "above" && direction !== "below") {
     return NextResponse.json({ error: "direction must be 'above' or 'below'" }, { status: 400 });
   }
 
@@ -38,14 +55,14 @@ export async function POST(req: NextRequest) {
     .insert({
       user_id: userId,
       symbol,
-      target_price: Number(targetPrice),
+      target_price: nTarget,
       direction,
       triggered: false,
     })
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError("POST", error);
   return NextResponse.json(data);
 }
 
@@ -53,7 +70,8 @@ export async function PATCH(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await req.json();
+  const body = await req.json().catch(() => null);
+  const id = body?.id;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   const supabase = getSupabase();
@@ -65,7 +83,7 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError("PATCH", error);
   return NextResponse.json(data);
 }
 
@@ -73,7 +91,8 @@ export async function DELETE(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { id } = await req.json();
+  const body = await req.json().catch(() => null);
+  const id = body?.id;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
   const supabase = getSupabase();
@@ -83,6 +102,6 @@ export async function DELETE(req: NextRequest) {
     .eq("user_id", userId)
     .eq("id", id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError("DELETE", error);
   return NextResponse.json({ success: true });
 }

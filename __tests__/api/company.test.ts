@@ -11,6 +11,7 @@ jest.mock("@/lib/finnhub", () => ({
 
 jest.mock("@/lib/cache", () => ({
   cachedFetch: jest.fn((_key: string, fetcher: () => Promise<unknown>) => fetcher()),
+  rateLimitRequest: jest.fn(async () => true),
 }));
 
 import { finnhubFetch } from "@/lib/finnhub";

@@ -1,7 +1,12 @@
 import type { NextRequest } from "next/server";
+import { rateLimitRequest } from "@/lib/cache";
+import { fetchYahooQuote } from "@/lib/yahoo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Vercel kills the function at this limit; EventSource on the client
+// auto-reconnects, so the stream resumes in a fresh invocation.
+export const maxDuration = 60;
 
 const INDICES = [
   { yahoo: "^GSPC", name: "S&P 500" },
@@ -12,40 +17,6 @@ const INDICES = [
 
 // Interval between pushes (ms)
 const TICK_MS = 10_000;
-
-type YahooChart = {
-  chart: {
-    result?: {
-      meta: {
-        symbol: string;
-        regularMarketPrice?: number;
-        chartPreviousClose?: number;
-        previousClose?: number;
-      };
-    }[];
-  };
-};
-
-async function fetchYahooQuote(yahooSymbol: string) {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1d&interval=1d`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as YahooChart;
-    const meta = data.chart?.result?.[0]?.meta;
-    if (!meta || !meta.regularMarketPrice) return null;
-    const price = meta.regularMarketPrice;
-    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
-    const change = price - prevClose;
-    const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
-    return { c: price, d: change, dp: changePct };
-  } catch {
-    return null;
-  }
-}
 
 async function snapshot() {
   const idxData = await Promise.all(
@@ -63,6 +34,13 @@ async function snapshot() {
 }
 
 export async function GET(req: NextRequest) {
+  // Each open stream holds a function execution; cap how often one IP can
+  // (re)connect. EventSource reconnects roughly once a minute here, so 30
+  // per 5 minutes leaves plenty of headroom for legitimate tabs.
+  if (!(await rateLimitRequest(req, "market-stream", 30, 300))) {
+    return new Response("Too many requests", { status: 429 });
+  }
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({

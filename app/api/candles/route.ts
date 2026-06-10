@@ -1,25 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-
-/**
- * Convert a Finnhub-style symbol to a Yahoo Finance ticker.
- *   BINANCE:BTCUSDT  → BTC-USD
- *   OANDA:EUR_USD    → EURUSD=X
- *   AAPL             → AAPL
- */
-function toYahooSymbol(symbol: string): string {
-  if (symbol.startsWith("BINANCE:")) {
-    // BINANCE:BTCUSDT → BTC-USD
-    const pair = symbol.replace("BINANCE:", "");
-    const base = pair.replace(/USDT$/, "").replace(/USD$/, "");
-    return `${base}-USD`;
-  }
-  if (symbol.startsWith("OANDA:")) {
-    // OANDA:EUR_USD → EURUSD=X
-    const pair = symbol.replace("OANDA:", "").replace("_", "");
-    return `${pair}=X`;
-  }
-  return symbol;
-}
+import { rateLimitRequest } from "@/lib/cache";
+import { toYahooSymbol, fetchYahooChart } from "@/lib/yahoo";
 
 /**
  * Map from/to timestamps to a Yahoo Finance range string.
@@ -52,24 +33,6 @@ function toYahooInterval(resolution: string): string {
   }
 }
 
-type YahooChart = {
-  chart: {
-    result?: {
-      timestamp: number[];
-      indicators: {
-        quote: {
-          open: (number | null)[];
-          high: (number | null)[];
-          low: (number | null)[];
-          close: (number | null)[];
-          volume?: (number | null)[];
-        }[];
-      };
-    }[];
-    error?: { description?: string };
-  };
-};
-
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const symbol = searchParams.get("symbol");
@@ -81,62 +44,51 @@ export async function GET(req: NextRequest) {
   if (!from) return NextResponse.json({ error: "Missing from" }, { status: 400 });
   if (!to) return NextResponse.json({ error: "Missing to" }, { status: 400 });
 
+  if (!(await rateLimitRequest(req, "candles", 60, 60))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const yahooSymbol = toYahooSymbol(symbol);
   const range = toYahooRange(Number(from), Number(to));
   const interval = toYahooInterval(resolution);
 
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=${range}&interval=${interval}`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      cache: "no-store",
-    });
+  const result = await fetchYahooChart(yahooSymbol, range, interval);
 
-    if (!res.ok) {
-      return NextResponse.json({ s: "no_data" });
-    }
-
-    const data = (await res.json()) as YahooChart;
-    const result = data.chart?.result?.[0];
-
-    if (!result || !result.timestamp?.length) {
-      return NextResponse.json({ s: "no_data" });
-    }
-
-    const quote = result.indicators.quote[0];
-    const timestamps = result.timestamp;
-
-    // Filter out entries with null values
-    const t: number[] = [];
-    const o: number[] = [];
-    const h: number[] = [];
-    const l: number[] = [];
-    const c: number[] = [];
-    const v: number[] = [];
-
-    for (let i = 0; i < timestamps.length; i++) {
-      if (
-        quote.close[i] != null &&
-        quote.open[i] != null &&
-        quote.high[i] != null &&
-        quote.low[i] != null
-      ) {
-        t.push(timestamps[i]);
-        o.push(quote.open[i]!);
-        h.push(quote.high[i]!);
-        l.push(quote.low[i]!);
-        c.push(quote.close[i]!);
-        v.push(quote.volume?.[i] ?? 0);
-      }
-    }
-
-    if (t.length === 0) {
-      return NextResponse.json({ s: "no_data" });
-    }
-
-    // Return in Finnhub-compatible format
-    return NextResponse.json({ s: "ok", t, o, h, l, c, v });
-  } catch {
+  if (!result || !result.timestamp?.length || !result.indicators?.quote?.[0]) {
     return NextResponse.json({ s: "no_data" });
   }
+
+  const quote = result.indicators.quote[0];
+  const timestamps = result.timestamp;
+
+  // Filter out entries with null values
+  const t: number[] = [];
+  const o: number[] = [];
+  const h: number[] = [];
+  const l: number[] = [];
+  const c: number[] = [];
+  const v: number[] = [];
+
+  for (let i = 0; i < timestamps.length; i++) {
+    if (
+      quote.close[i] != null &&
+      quote.open[i] != null &&
+      quote.high[i] != null &&
+      quote.low[i] != null
+    ) {
+      t.push(timestamps[i]);
+      o.push(quote.open[i]!);
+      h.push(quote.high[i]!);
+      l.push(quote.low[i]!);
+      c.push(quote.close[i]!);
+      v.push(quote.volume?.[i] ?? 0);
+    }
+  }
+
+  if (t.length === 0) {
+    return NextResponse.json({ s: "no_data" });
+  }
+
+  // Return in Finnhub-compatible format
+  return NextResponse.json({ s: "ok", t, o, h, l, c, v });
 }

@@ -257,6 +257,8 @@ export function runBacktest(candles: Candle[], strategy: Strategy, initialCapita
   const mean = returns.reduce((s, r) => s + r, 0) / (returns.length || 1);
   const variance = returns.reduce((s, r) => s + (r - mean) ** 2, 0) / (returns.length || 1);
   const stdev = Math.sqrt(variance);
+  // √252 annualization assumes daily candles; feeding weekly/monthly candles
+  // would overstate the Sharpe ratio.
   const sharpe = stdev > 0 ? (mean / stdev) * Math.sqrt(252) : 0;
 
   let peak = values[0];

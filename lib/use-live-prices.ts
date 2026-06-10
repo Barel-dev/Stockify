@@ -15,7 +15,7 @@ type TradeMessage = {
 
 /**
  * Hook that connects to Finnhub WebSocket API for real-time price updates.
- * Falls back to polling if WebSocket is unavailable.
+ * Reconnects with capped exponential backoff if the socket drops.
  * @param symbols - Array of stock symbols to subscribe to
  * @param apiKey - Finnhub API key (passed from env via component)
  */
@@ -32,61 +32,79 @@ export function useLivePrices(symbols: string[], apiKey: string) {
     }
   }, []);
 
+  // Key the effect on the joined string so a new array with the same symbols
+  // doesn't tear down a healthy connection.
+  const symbolsKey = symbols.join(",");
+
   useEffect(() => {
-    if (!apiKey || symbols.length === 0) return;
+    if (!apiKey || symbolsKey === "") return;
 
-    // Clean up any existing connection
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-      subscribedRef.current.clear();
-    }
+    const syms = symbolsKey.split(",").filter(Boolean);
+    const subscribed = subscribedRef.current;
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
 
-    const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
-    wsRef.current = ws;
+    const connect = () => {
+      if (disposed) return;
 
-    ws.onopen = () => {
-      setConnected(true);
-      for (const symbol of symbols) {
-        subscribe(ws, symbol);
-      }
-    };
+      const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
+      wsRef.current = ws;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg: TradeMessage = JSON.parse(event.data);
-        if (msg.type === "trade" && msg.data) {
-          setPrices((prev) => {
-            const next = new Map(prev);
-            for (const trade of msg.data!) {
-              next.set(trade.s, {
-                price: trade.p,
-                volume: trade.v,
-                timestamp: trade.t,
-              });
-            }
-            return next;
-          });
+      ws.onopen = () => {
+        attempts = 0;
+        setConnected(true);
+        for (const symbol of syms) {
+          subscribe(ws, symbol);
         }
-      } catch {
-        // ignore parse errors
-      }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg: TradeMessage = JSON.parse(event.data);
+          if (msg.type === "trade" && msg.data) {
+            setPrices((prev) => {
+              const next = new Map(prev);
+              for (const trade of msg.data!) {
+                next.set(trade.s, {
+                  price: trade.p,
+                  volume: trade.v,
+                  timestamp: trade.t,
+                });
+              }
+              return next;
+            });
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        subscribed.clear();
+        // Reconnect unless this close came from effect cleanup.
+        if (!disposed && attempts < 6) {
+          attempts++;
+          retryTimer = setTimeout(connect, Math.min(30_000, 1_000 * 2 ** attempts));
+        }
+      };
+
+      ws.onerror = () => {
+        setConnected(false);
+      };
     };
 
-    ws.onclose = () => {
-      setConnected(false);
-      subscribedRef.current.clear();
-    };
-
-    ws.onerror = () => {
-      setConnected(false);
-    };
+    connect();
 
     return () => {
-      ws.close();
-      subscribedRef.current.clear();
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
+      subscribed.clear();
     };
-  }, [apiKey, symbols.join(","), subscribe]);
+  }, [apiKey, symbolsKey, subscribe]);
 
   return { prices, connected };
 }

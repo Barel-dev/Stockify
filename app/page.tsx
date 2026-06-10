@@ -2459,7 +2459,7 @@ function HomeContent() {
                               </div>
                             ))}
                         </div>
-                        {companyData?.weburl && (
+                        {companyData?.weburl && /^https?:\/\//i.test(companyData.weburl) && (
                           <a href={companyData.weburl} target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 text-sm text-blue-300 hover:text-white transition-colors break-all">
                             <FiExternalLink /> {companyData.weburl}
                           </a>

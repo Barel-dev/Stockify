@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { finnhubFetch } from "@/lib/finnhub";
+import { rateLimitRequest } from "@/lib/cache";
 
 type QuoteData = { c: number };
 
@@ -13,7 +14,11 @@ const FALLBACK_RATES: Record<string, number> = {
 };
 
 // Fetch exchange rates relative to USD using Finnhub forex quotes, with fallbacks
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await rateLimitRequest(req, "exchange-rates", 30, 60))) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const pairs = [
     { pair: "OANDA:EUR_USD", code: "EUR" },
     { pair: "OANDA:GBP_USD", code: "GBP" },

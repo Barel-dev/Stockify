@@ -60,11 +60,35 @@ export async function rateLimit(key: string, limit: number, windowSec: number): 
   if (!r) return true;
 
   try {
+    // Set the TTL before counting (NX = only if the key doesn't exist yet) so a
+    // crash between the two calls can never leave a counter that never expires.
+    await r.set(key, 0, { nx: true, ex: windowSec });
     const count = await r.incr(key);
-    if (count === 1) await r.expire(key, windowSec);
     return count <= limit;
   } catch {
     // Redis unavailable — fail open rather than blocking users.
     return true;
   }
+}
+
+/**
+ * Client IP for rate-limit keying. On Vercel, x-forwarded-for is set by the
+ * platform and cannot be spoofed by clients. If this app is ever self-hosted
+ * behind a different proxy, re-validate that assumption.
+ */
+export function getClientIp(req: Request): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+}
+
+/**
+ * Per-IP fixed-window rate limit for a named route. Best-effort: allows
+ * everything when Upstash Redis isn't configured (local/dev).
+ */
+export async function rateLimitRequest(
+  req: Request,
+  name: string,
+  limit = 60,
+  windowSec = 60
+): Promise<boolean> {
+  return rateLimit(`rl:${name}:${getClientIp(req)}`, limit, windowSec);
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { finnhubFetch } from "@/lib/finnhub";
-import { rateLimit } from "@/lib/cache";
+import { rateLimitRequest } from "@/lib/cache";
 
 type Quote = { c: number; d: number; dp: number; h: number; l: number; o: number; pc: number };
 type Company = { name?: string; finnhubIndustry?: string; marketCapitalization?: number; country?: string };
@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
   if (!symbol) {
     return new Response(JSON.stringify({ error: "Missing symbol" }), { status: 400 });
   }
+  // Tickers incl. prefixed forms (BINANCE:BTCUSDT, OANDA:EUR_USD, BRK.B, ^GSPC, EURUSD=X)
+  if (typeof symbol !== "string" || !/^[A-Za-z0-9.:_=^-]{1,25}$/.test(symbol)) {
+    return new Response(JSON.stringify({ error: "Invalid symbol" }), { status: 400 });
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -39,8 +43,7 @@ export async function POST(req: NextRequest) {
 
   // Throttle to protect against abuse of the paid Anthropic endpoint.
   // Best-effort: no-ops if Upstash Redis isn't configured.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  const allowed = await rateLimit(`analyze:${ip}`, 20, 3600);
+  const allowed = await rateLimitRequest(req, "analyze", 20, 3600);
   if (!allowed) {
     return new Response(
       JSON.stringify({ error: "Rate limit reached. Please try again later." }),
@@ -71,12 +74,17 @@ export async function POST(req: NextRequest) {
     .map((n) => `- ${n.headline ?? ""}: ${(n.summary ?? "").slice(0, 200)}`)
     .join("\n");
 
+  // Finnhub returns null for d/dp/h/l on some symbols and market states —
+  // never call toFixed on them directly.
+  const fmt = (n: number | null | undefined) =>
+    typeof n === "number" && Number.isFinite(n) ? n.toFixed(2) : "n/a";
+
   const context = `
 Ticker: ${sym}
 Company: ${company?.name ?? sym} (${company?.finnhubIndustry ?? "n/a"}, ${company?.country ?? "n/a"})
 Market Cap: ${company?.marketCapitalization ? `$${company.marketCapitalization.toFixed(0)}M` : "n/a"}
-Current Price: $${quote.c.toFixed(2)} (${quote.dp.toFixed(2)}% today, change $${quote.d.toFixed(2)})
-Today's Range: $${quote.l.toFixed(2)} - $${quote.h.toFixed(2)}
+Current Price: $${fmt(quote.c)} (${fmt(quote.dp)}% today, change $${fmt(quote.d)})
+Today's Range: $${fmt(quote.l)} - $${fmt(quote.h)}
 P/E (TTM): ${m.peBasicExclExtraTTM ?? "n/a"}
 EPS (TTM): ${m.epsBasicExclExtraItemsTTM ?? "n/a"}
 52-Week Range: $${m["52WeekLow"] ?? "?"} - $${m["52WeekHigh"] ?? "?"}
@@ -128,8 +136,9 @@ Rules:
         }
         controller.close();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "unknown error";
-        controller.enqueue(encoder.encode(`\n\n[Error: ${msg}]`));
+        // Log the real error server-side; don't leak provider details to clients.
+        console.error("analyze stream error:", err);
+        controller.enqueue(encoder.encode(`\n\n[Error: analysis failed — please try again]`));
         controller.close();
       }
     },

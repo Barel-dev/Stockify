@@ -161,8 +161,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ```env
 ANTHROPIC_API_KEY=                      # enables AI Analyst
-UPSTASH_REDIS_REST_URL=                 # enables response caching
+UPSTASH_REDIS_REST_URL=                 # enables response caching + API rate limiting
 UPSTASH_REDIS_REST_TOKEN=
+FINNHUB_WS_API_KEY=                     # separate key for the browser WebSocket
+                                        # (falls back to FINNHUB_API_KEY)
 ```
 
 ### Database Setup
